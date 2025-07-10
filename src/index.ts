@@ -3,6 +3,7 @@ import dotenv from 'dotenv';
 import { loadCsvData, DiaryEntry, WatchlistEntry, RatingEntry } from './data/loader';
 import { TMDbService } from './services/tmdb.service';
 import { RecommendationService } from './services/recommendation.service';
+import { CacheService } from './services/cache.service';
 
 dotenv.config();
 
@@ -21,7 +22,10 @@ async function main() {
     return;
   }
 
-  const tmdbService = new TMDbService(tmdbApiKey);
+  const cacheService = new CacheService();
+  await cacheService.init();
+
+  const tmdbService = new TMDbService(tmdbApiKey, cacheService);
   const recommendationService = new RecommendationService(tmdbService);
 
   // Log loaded data
@@ -49,25 +53,26 @@ async function main() {
     },
   ]);
 
+  const highlyRatedMovies = ratingsData.filter(r => r.Rating >= 4);
+
   switch (action) {
     case 'Get personalized recommendations':
-      const { recommendationType } = await inquirer.prompt([
+      let recommendations;
+      let recommendationMessage;
+
+      const { recommendationChoice } = await inquirer.prompt([
         {
           type: 'list',
-          name: 'recommendationType',
-          message: 'Select recommendation type:',
+          name: 'recommendationChoice',
+          message: 'What kind of recommendations do you want?',
           choices: [
-            'All recommendations (no streaming filter)',
             'Recommendations available on my services',
+            'All recommendations',
           ],
         },
       ]);
 
-      const highlyRatedMovies = ratingsData.filter(r => r.Rating >= 4);
-      let recommendations;
-      let recommendationMessage;
-
-      if (recommendationType === 'Recommendations available on my services') {
+      if (recommendationChoice === 'Recommendations available on my services') {
         if (subscribedServices.length === 0 || subscribedServices[0] === '') {
           console.error('Please add your STREAMING_SERVICES to the .env file to use this option.');
           break;
@@ -82,11 +87,23 @@ async function main() {
       if (recommendations.length > 0) {
         console.log(`
 ${recommendationMessage}`);
-        recommendations.forEach((movie, index) => {
+        recommendations.forEach((movie: any, index: number) => {
           console.log(`${index + 1}. ${movie.title} (Score: ${movie.score})`);
         });
       } else {
         console.log('No new movie recommendations found at this time.');
+      }
+      break;
+
+    case 'Suggest a random movie with details':
+      const randomRecommendation = await recommendationService.getRandomRecommendationWithDetails(highlyRatedMovies, diaryData, watchlistData);
+      if (randomRecommendation.movie) {
+        console.log(`
+How about watching: ${randomRecommendation.movie.title} (${new Date(randomRecommendation.movie.release_date).getFullYear()})?`);
+        console.log('Reasons you might like this:');
+        randomRecommendation.reasons.forEach(reason => console.log(`- ${reason}`));
+      } else {
+        console.log('Could not suggest a random movie at this time.');
       }
       break;
 

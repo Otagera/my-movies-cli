@@ -9,3 +9,5 @@
 
 # Data files
 /data
+
+cache.sqlite
