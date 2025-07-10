@@ -1,8 +1,8 @@
 import inquirer from 'inquirer';
 import dotenv from 'dotenv';
-import { loadCsvData, DiaryEntry, WatchlistEntry } from './data/loader';
+import { loadCsvData, DiaryEntry, WatchlistEntry, RatingEntry } from './data/loader';
 import { TMDbService } from './services/tmdb.service';
-import { SimklService, SimklWatchHistoryItem } from './services/simkl.service';
+import { RecommendationService } from './services/recommendation.service';
 
 dotenv.config();
 
@@ -10,12 +10,11 @@ async function main() {
   // Load data from all sources
   const diaryData = await loadCsvData<DiaryEntry>('diary.csv');
   const watchlistData = await loadCsvData<WatchlistEntry>('watchlist.csv');
-  
+  const ratingsData = await loadCsvData<RatingEntry>('ratings.csv');
+
   const subscribedServices = (process.env.STREAMING_SERVICES || '').split(',').map(s => s.trim().toLowerCase());
   const tmdbApiKey = process.env.TMDB_API_KEY;
   const countryCode = process.env.STREAMING_COUNTRY_CODE;
-  const simklApiKey = process.env.SIMKL_API_KEY;
-  const simklUsername = process.env.SIMKL_USERNAME;
 
   if (!tmdbApiKey || !countryCode) {
     console.error('Please ensure TMDB_API_KEY and STREAMING_COUNTRY_CODE are set in your .env file.');
@@ -23,17 +22,12 @@ async function main() {
   }
 
   const tmdbService = new TMDbService(tmdbApiKey);
-  let simklWatchHistory: SimklWatchHistoryItem[] = [];
-
-  if (simklApiKey && simklUsername) {
-    const simklService = new SimklService(simklApiKey);
-    simklWatchHistory = await simklService.getWatchHistory(simklUsername);
-  }
+  const recommendationService = new RecommendationService(tmdbService);
 
   // Log loaded data
   if (diaryData.length > 0) console.log(`Successfully loaded ${diaryData.length} diary entries.`);
   if (watchlistData.length > 0) console.log(`Successfully loaded ${watchlistData.length} watchlist entries.`);
-  if (simklWatchHistory.length > 0) console.log(`Successfully loaded ${simklWatchHistory.length} TV show history entries from Simkl.`);
+  if (ratingsData.length > 0) console.log(`Successfully loaded ${ratingsData.length} ratings.`);
 
 
   const { action } = await inquirer.prompt([
@@ -42,11 +36,11 @@ async function main() {
       name: 'action',
       message: 'What do you want to ask?',
       choices: [
+        'Get personalized recommendations',
         'How many movies have I watched?',
         'List movies watched in a specific year',
         'How many movies are on my watchlist?',
         'List all movies on my watchlist',
-        'List watched TV shows',
         'Find where to watch a movie',
         'Suggest a random movie to watch',
         'List available streaming services',
@@ -56,6 +50,11 @@ async function main() {
   ]);
 
   switch (action) {
+    case 'Get personalized recommendations':
+      const highlyRatedMovies = ratingsData.filter(r => r.Rating >= 4);
+      await recommendationService.getRecommendations(diaryData, watchlistData, highlyRatedMovies);
+      break;
+
     case 'How many movies have I watched?':
       console.log(`You have watched ${diaryData.length} movies.`);
       break;
@@ -84,15 +83,6 @@ async function main() {
 
     case 'List all movies on my watchlist':
       watchlistData.forEach(entry => console.log(`- ${entry.Name}`));
-      break;
-    
-    case 'List watched TV shows':
-      if (simklWatchHistory.length > 0) {
-        console.log('Watched TV shows from Simkl:');
-        simklWatchHistory.forEach(item => console.log(`- ${item.show.title} (${item.show.year})`));
-      } else {
-        console.log('Could not find your Simkl watch history. Make sure SIMKL_API_KEY and SIMKL_USERNAME are correct in your .env file.');
-      }
       break;
 
     case 'Find where to watch a movie':

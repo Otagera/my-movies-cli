@@ -22,6 +22,14 @@ export interface WatchlistEntry {
   'Letterboxd URI': string;
 }
 
+export interface RatingEntry {
+  Date: string;
+  Name: string;
+  Year: string;
+  'Letterboxd URI': string;
+  Rating: number;
+}
+
 export async function loadCsvData<T>(fileName: string): Promise<T[]> {
   const filePath = path.join(DATA_DIR, fileName);
   const results: T[] = [];

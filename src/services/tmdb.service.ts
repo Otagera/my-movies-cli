@@ -31,6 +31,15 @@ export class TMDbService {
     return response.data.results;
   }
 
+  async getMovieDetails(movieId: number) {
+    const response = await axios.get(`${TMDB_API_BASE_URL}/movie/${movieId}`, {
+      params: {
+        api_key: this.apiKey,
+      },
+    });
+    return response.data;
+  }
+
   async getAvailableProviders(countryCode: string) {
     const response = await axios.get(`${TMDB_API_BASE_URL}/watch/providers/movie`, {
         params: {
