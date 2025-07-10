@@ -49,4 +49,14 @@ export class TMDbService {
     });
     return response.data.results;
   }
+
+  async discoverMovies(params: { sort_by?: string; page?: number; with_genres?: string }) {
+    const response = await axios.get(`${TMDB_API_BASE_URL}/discover/movie`, {
+      params: {
+        api_key: this.apiKey,
+        ...params,
+      },
+    });
+    return response.data;
+  }
 }

@@ -51,8 +51,43 @@ async function main() {
 
   switch (action) {
     case 'Get personalized recommendations':
+      const { recommendationType } = await inquirer.prompt([
+        {
+          type: 'list',
+          name: 'recommendationType',
+          message: 'Select recommendation type:',
+          choices: [
+            'All recommendations (no streaming filter)',
+            'Recommendations available on my services',
+          ],
+        },
+      ]);
+
       const highlyRatedMovies = ratingsData.filter(r => r.Rating >= 4);
-      await recommendationService.getRecommendations(diaryData, watchlistData, highlyRatedMovies);
+      let recommendations;
+      let recommendationMessage;
+
+      if (recommendationType === 'Recommendations available on my services') {
+        if (subscribedServices.length === 0 || subscribedServices[0] === '') {
+          console.error('Please add your STREAMING_SERVICES to the .env file to use this option.');
+          break;
+        }
+        recommendations = await recommendationService.getRecommendations(diaryData, watchlistData, highlyRatedMovies, subscribedServices, countryCode);
+        recommendationMessage = 'Here are your top 5 personalized movie recommendations (available on your subscribed services):';
+      } else {
+        recommendations = await recommendationService.getRecommendations(diaryData, watchlistData, highlyRatedMovies);
+        recommendationMessage = 'Here are your top 5 personalized movie recommendations (all):';
+      }
+
+      if (recommendations.length > 0) {
+        console.log(`
+${recommendationMessage}`);
+        recommendations.forEach((movie, index) => {
+          console.log(`${index + 1}. ${movie.title} (Score: ${movie.score})`);
+        });
+      } else {
+        console.log('No new movie recommendations found at this time.');
+      }
       break;
 
     case 'How many movies have I watched?':
