@@ -16,30 +16,73 @@ export class CacheService {
   }
 
   async init() {
-    await this.db.schema.createTableIfNotExists('movies', (table) => {
-      table.integer('id').primary();
-      table.string('title');
-      table.text('overview');
-      table.string('release_date');
-      table.json('genre_ids'); // Store as JSON string
-      table.timestamp('cached_at').defaultTo(this.db.fn.now());
-    });
+    const hasMoviesTable = await this.db.schema.hasTable('movies');
+    if (!hasMoviesTable) {
+      await this.db.schema.createTable('movies', (table) => {
+        table.integer('id').primary();
+        table.string('title');
+        table.text('overview');
+        table.string('release_date');
+        table.json('genre_ids'); // Store as JSON string
+        table.timestamp('cached_at').defaultTo(this.db.fn.now());
+      });
+    }
 
-    await this.db.schema.createTableIfNotExists('movie_credits', (table) => {
-      table.integer('movie_id').primary();
-      table.json('cast'); // Store as JSON string
-      table.json('crew'); // Store as JSON string
-      table.timestamp('cached_at').defaultTo(this.db.fn.now());
-    });
+    const hasMovieCreditsTable = await this.db.schema.hasTable('movie_credits');
+    if (!hasMovieCreditsTable) {
+      await this.db.schema.createTable('movie_credits', (table) => {
+        table.integer('movie_id').primary();
+        table.json('cast'); // Store as JSON string
+        table.json('crew'); // Store as JSON string
+        table.timestamp('cached_at').defaultTo(this.db.fn.now());
+      });
+    }
 
-    // Table to store discover movie results (e.g., for popular movies by page)
-    await this.db.schema.createTableIfNotExists('discover_movies_cache', (table) => {
-      table.string('query_params').primary(); // e.g., 'sort_by=popularity.desc&page=1'
-      table.json('results'); // Store array of movie IDs or simplified movie objects
-      table.timestamp('cached_at').defaultTo(this.db.fn.now());
-    });
+    const hasDiscoverMoviesCacheTable = await this.db.schema.hasTable('discover_movies_cache');
+    if (!hasDiscoverMoviesCacheTable) {
+      await this.db.schema.createTable('discover_movies_cache', (table) => {
+        table.string('query_params').primary(); // e.g., 'sort_by=popularity.desc&page=1'
+        table.json('results'); // Store array of movie IDs or simplified movie objects
+        table.timestamp('cached_at').defaultTo(this.db.fn.now());
+      });
+    }
+
+    const hasGenericCacheTable = await this.db.schema.hasTable('generic_cache');
+    if (!hasGenericCacheTable) {
+      await this.db.schema.createTable('generic_cache', (table) => {
+        table.string('key').primary();
+        table.text('value');
+        table.timestamp('cached_at').defaultTo(this.db.fn.now());
+      });
+    }
 
     console.log('SQLite cache initialized.');
+  }
+
+  public async set<T>(key: string, value: T, ttlSeconds?: number): Promise<void> {
+    const data = {
+      key,
+      value: JSON.stringify(value),
+      cached_at: new Date().toISOString(),
+    };
+    await this.db('generic_cache').insert(data).onConflict('key').merge();
+  }
+
+  public async get<T>(key: string, ttlSeconds?: number): Promise<T | null> {
+    const record = await this.db('generic_cache').where({ key }).first();
+    if (record) {
+      if (ttlSeconds) {
+        const now = new Date();
+        const cachedAt = new Date(record.cached_at);
+        const diff = (now.getTime() - cachedAt.getTime()) / 1000;
+        if (diff > ttlSeconds) {
+          await this.db('generic_cache').where({ key }).del();
+          return null;
+        }
+      }
+      return JSON.parse(record.value) as T;
+    }
+    return null;
   }
 
   async saveMovie(movie: any) {

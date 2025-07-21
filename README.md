@@ -57,7 +57,7 @@ This project has recently benefited from significant enhancements and debugging 
 To start the application, run:
 
 ```bash
-NODE_TLS_REJECT_UNAUTHORIZED='0' npm start
+npm start
 ```
 
 You will be presented with a menu of options to interact with your data.
