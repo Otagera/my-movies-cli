@@ -3,10 +3,13 @@
   "version": "1.0.0",
   "description": "",
   "main": "dist/index.js",
+  "type": "module",
   "scripts": {
     "start": "ts-node src/index.ts",
     "dev": "NODE_TLS_REJECT_UNAUTHORIZED='0' ts-node src/index.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "lint": "eslint \"src/**/*.ts\""
   },
   "keywords": [],
   "author": "",
@@ -24,8 +27,15 @@
     "sqlite3": "^5.1.7"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
     "@types/inquirer": "^9.0.8",
     "@types/node": "^24.0.12",
+    "@typescript-eslint/eslint-plugin": "^8.37.0",
+    "@typescript-eslint/parser": "^8.37.0",
+    "eslint": "^9.31.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.3",
+    "globals": "^16.3.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"
   }

@@ -10,4 +10,4 @@
 # Data files
 /data
 
-cache.sqlite
+cache.sqlite\n# Data files\nsrc/data/saved-lists.json\nsrc/data/watchlist-availability.json

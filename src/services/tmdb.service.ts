@@ -1,7 +1,7 @@
-import axios from 'axios';
-import { CacheService } from './cache.service';
+import axios from "axios";
+import { CacheService } from "./cache.service";
 
-const TMDB_API_BASE_URL = 'https://api.themoviedb.org/3';
+const TMDB_API_BASE_URL = "https://api.themoviedb.org/3";
 
 export class TMDbService {
   private apiKey: string;
@@ -9,7 +9,7 @@ export class TMDbService {
 
   constructor(apiKey: string, cacheService: CacheService) {
     if (!apiKey) {
-      throw new Error('TMDb API key is required.');
+      throw new Error("TMDb API key is required.");
     }
     this.apiKey = apiKey;
     this.cacheService = cacheService;
@@ -28,11 +28,14 @@ export class TMDbService {
   }
 
   async getWatchProviders(movieId: number) {
-    const response = await axios.get(`${TMDB_API_BASE_URL}/movie/${movieId}/watch/providers`, {
-      params: {
-        api_key: this.apiKey,
+    const response = await axios.get(
+      `${TMDB_API_BASE_URL}/movie/${movieId}/watch/providers`,
+      {
+        params: {
+          api_key: this.apiKey,
+        },
       },
-    });
+    );
     return response.data.results;
   }
 
@@ -53,18 +56,28 @@ export class TMDbService {
   }
 
   async getAvailableProviders(countryCode: string) {
-    const response = await axios.get(`${TMDB_API_BASE_URL}/watch/providers/movie`, {
+    const response = await axios.get(
+      `${TMDB_API_BASE_URL}/watch/providers/movie`,
+      {
         params: {
-            api_key: this.apiKey,
-            watch_region: countryCode.toUpperCase(),
+          api_key: this.apiKey,
+          watch_region: countryCode.toUpperCase(),
         },
-    });
+      },
+    );
     return response.data.results;
   }
 
-  async discoverMovies(params: { sort_by?: string; page?: number; with_genres?: string }) {
-    const queryParams = new URLSearchParams(params as Record<string, string>).toString();
-    const cachedDiscover = await this.cacheService.getDiscoverMovies(queryParams);
+  async discoverMovies(params: {
+    sort_by?: string;
+    page?: number;
+    with_genres?: string;
+  }) {
+    const queryParams = new URLSearchParams(
+      params as Record<string, string>,
+    ).toString();
+    const cachedDiscover =
+      await this.cacheService.getDiscoverMovies(queryParams);
     if (cachedDiscover) {
       return cachedDiscover.results;
     }
@@ -86,11 +99,14 @@ export class TMDbService {
       return cachedCredits;
     }
 
-    const response = await axios.get(`${TMDB_API_BASE_URL}/movie/${movieId}/credits`, {
-      params: {
-        api_key: this.apiKey,
+    const response = await axios.get(
+      `${TMDB_API_BASE_URL}/movie/${movieId}/credits`,
+      {
+        params: {
+          api_key: this.apiKey,
+        },
       },
-    });
+    );
     const movieCredits = response.data;
     await this.cacheService.saveMovieCredits(movieId, movieCredits);
     return movieCredits;
