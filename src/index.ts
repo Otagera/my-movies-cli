@@ -1,9 +1,10 @@
 import inquirer from "inquirer";
 import dotenv from "dotenv";
+import cliSpinners from "cli-spinners";
+
 // Helper function to create and manage a spinner
-async function createSpinner(text: string) {
-  const { default: spinners } = await import("cli-spinners");
-  const spinner = spinners.dots;
+function createSpinner(text: string) {
+  const spinner = cliSpinners.dots;
   let i = 0;
   let interval: NodeJS.Timeout;
 
@@ -419,8 +420,8 @@ async function main() {
             break;
           }
 
-          const listSpinner = (
-            await createSpinner("Fetching list from Letterboxd...")
+          const listSpinner = createSpinner(
+            "Fetching list from Letterboxd...",
           ).start();
           try {
             const movies = await letterboxdService.getMoviesFromList(listUrl);
@@ -437,8 +438,8 @@ async function main() {
               ]);
 
               if (findWatchProviders) {
-                const providersSpinner = (
-                  await createSpinner("Finding watch providers...")
+                const providersSpinner = createSpinner(
+                  "Finding watch providers...",
                 ).start();
                 const subscribedMovies: string[] = [];
                 const otherAvailableMovies: string[] = [];
@@ -543,10 +544,8 @@ async function main() {
         }
 
         case "Check for watchlist availability changes": {
-          const watchlistSpinner = (
-            await createSpinner(
-              "Checking for watchlist availability changes...",
-            )
+          const watchlistSpinner = createSpinner(
+            "Checking for watchlist availability changes...",
           ).start();
           try {
             const changes =

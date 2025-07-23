@@ -3,13 +3,12 @@
   "version": "1.0.0",
   "description": "",
   "main": "dist/index.js",
-  "type": "module",
   "scripts": {
     "start": "ts-node src/index.ts",
     "dev": "NODE_TLS_REJECT_UNAUTHORIZED='0' ts-node src/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "format": "prettier --write \"src/**/*.ts\"",
-    "lint": "eslint \"src/**/*.ts\""
+    "lint": "eslint --config eslint.config.mjs \"src/**/*.ts\""
   },
   "keywords": [],
   "author": "",
@@ -18,10 +17,10 @@
     "@types/cheerio": "^1.0.0",
     "axios": "^1.10.0",
     "cheerio": "^1.1.1",
-    "cli-spinners": "^3.2.0",
+    "cli-spinners": "^2.9.1",
     "csv-parser": "^3.2.0",
     "dotenv": "^17.2.0",
-    "inquirer": "^12.7.0",
+    "inquirer": "^9.2.20",
     "knex": "^3.1.0",
     "puppeteer": "^24.14.0",
     "sqlite3": "^5.1.7"
@@ -37,6 +36,7 @@
     "eslint-plugin-prettier": "^5.5.3",
     "globals": "^16.3.0",
     "ts-node": "^10.9.2",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.38.0"
   }
 }

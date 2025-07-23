@@ -13,4 +13,4 @@
 cache.sqlite
 
 # Data files
-src/data/saved-lists.json\nsrc/data/watchlist-availability.json
+src/data
