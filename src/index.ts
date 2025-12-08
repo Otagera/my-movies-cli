@@ -35,17 +35,12 @@ function createSpinner(text: string) {
   };
   return self;
 }
-import {
-  loadCsvData,
-  DiaryEntry,
-  WatchlistEntry,
-  RatingEntry,
-} from "./data/loader";
 import { TMDbService } from "./services/tmdb.service";
 import { RecommendationService } from "./services/recommendation.service";
 import { CacheService } from "./services/cache.service";
 import { LetterboxdService } from "./services/letterboxd.service";
 import { WatchlistService } from "./services/watchlist.service";
+import { DataSyncService } from "./services/data-sync.service";
 
 dotenv.config();
 
@@ -55,15 +50,17 @@ interface SavedList {
 }
 
 async function main() {
-  // Load data from all sources
-  const diaryData = await loadCsvData<DiaryEntry>("diary.csv");
-  const watchlistData = await loadCsvData<WatchlistEntry>("watchlist.csv");
-  const ratingsData = await loadCsvData<RatingEntry>("ratings.csv");
-  const savedLists = await loadCsvData<SavedList>("likes/lists.csv");
+  const cacheService = new CacheService();
+  await cacheService.init();
 
-  const subscribedServices = (process.env.STREAMING_SERVICES || "")
-    .split(",")
-    .map((s) => s.trim().toLowerCase());
+  // Load data from all sources
+  let diaryData = await cacheService.getDiaryEntries();
+  let watchlistData = await cacheService.getWatchlistEntries();
+  let ratingsData = await cacheService.getRatingEntries();
+  let savedLists = await cacheService.getSavedLists();
+
+  let subscribedServices =
+    (await cacheService.get<string[]>("streaming_services")) || [];
   const tmdbApiKey = process.env.TMDB_API_KEY;
   const countryCode = process.env.STREAMING_COUNTRY_CODE;
 
@@ -74,8 +71,7 @@ async function main() {
     return;
   }
 
-  const cacheService = new CacheService();
-  await cacheService.init();
+  const dataSyncService = new DataSyncService(cacheService);
 
   const tmdbService = new TMDbService(tmdbApiKey, cacheService);
   const recommendationService = new RecommendationService(tmdbService);
@@ -108,15 +104,26 @@ async function main() {
           message: "What do you want to ask?",
           choices: [
             "Get personalized recommendations",
-            "How many movies have I watched?",
-            "List movies watched in a specific year",
-            "How many movies are on my watchlist?",
-            "List all movies on my watchlist",
             "Find where to watch a movie",
             "Suggest a random movie to watch",
+            new inquirer.Separator(),
+            new inquirer.Separator(),
+            "How many movies have I watched?",
+            "How many movies are on my watchlist?",
+            new inquirer.Separator(),
+            new inquirer.Separator(),
+            "List movies watched in a specific year",
+            "List all movies on my watchlist",
             "List available streaming services",
             "Get movies from a Letterboxd list",
             "Check for watchlist availability changes",
+            "List available movies on my watchlist",
+            new inquirer.Separator(),
+            new inquirer.Separator(),
+            "Set streaming services",
+            new inquirer.Separator(),
+            new inquirer.Separator(),
+            "Sync data with Letterboxd",
             "Exit",
           ],
         },
@@ -125,6 +132,68 @@ async function main() {
       const highlyRatedMovies = ratingsData.filter((r) => r.Rating >= 4);
 
       switch (action) {
+        case "List available movies on my watchlist": {
+          const availableMovies =
+            await watchlistService.getAvailableMoviesFromCache();
+          if (availableMovies.length > 0) {
+            console.log("Available movies on your watchlist:");
+            availableMovies.forEach((movie) => console.log(`- ${movie}`));
+          } else {
+            console.log(
+              "No available movies found on your watchlist. Run 'Check for watchlist availability changes' to update.",
+            );
+          }
+          break;
+        }
+        case "Set streaming services": {
+          const availableProviders =
+            await tmdbService.getAvailableProviders(countryCode);
+          const availableProviderNames = availableProviders.map(
+            (p: { provider_name: string }) => p.provider_name.toLowerCase(),
+          );
+
+          while (true) {
+            const { services } = await inquirer.prompt([
+              {
+                type: "input",
+                name: "services",
+                message:
+                  "Enter your comma-separated streaming services (e.g. Netflix, Hulu):",
+              },
+            ]);
+
+            const servicesArray = services
+              .split(",")
+              .map((s: string) => s.trim().toLowerCase());
+
+            const invalidServices = servicesArray.filter(
+              (s: string) => !availableProviderNames.includes(s),
+            );
+
+            if (invalidServices.length > 0) {
+              console.error(
+                `Invalid services: ${invalidServices.join(
+                  ", ",
+                )}. Please try again.`,
+              );
+            } else {
+              await cacheService.set("streaming_services", servicesArray);
+              subscribedServices = servicesArray;
+              console.log("Streaming services saved.");
+              break;
+            }
+          }
+          break;
+        }
+        case "Sync data with Letterboxd": {
+          await dataSyncService.syncData();
+          // Reload data from cache
+          diaryData = await cacheService.getDiaryEntries();
+          watchlistData = await cacheService.getWatchlistEntries();
+          ratingsData = await cacheService.getRatingEntries();
+          savedLists = await cacheService.getSavedLists();
+          break;
+        }
         case "Get personalized recommendations": {
           let recommendations;
           let recommendationMessage;
@@ -584,6 +653,7 @@ async function main() {
 
         case "Exit": {
           console.log("Goodbye!");
+          process.exit(0);
           return;
         }
       }

@@ -9,8 +9,12 @@
 
 # Data files
 /data
-
-cache.sqlite
-
-# Data files
+/cache.sqlite
 src/data
+
+# OS generated files
+**/.DS_Store
+
+# AI related files
+GEMINI.md
+cache.sqlite

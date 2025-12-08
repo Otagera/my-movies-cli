@@ -1,5 +1,14 @@
 import knex from "knex";
 import path from "path";
+import { DiaryEntry, RatingEntry, WatchlistEntry } from "../data/loader";
+
+export interface WatchlistAvailability {
+  [movieName: string]: {
+    isAvailable: boolean;
+    providers: string[];
+    link?: string;
+  };
+}
 
 interface Movie {
   id: number;
@@ -12,6 +21,11 @@ interface Movie {
 interface Credits {
   cast: unknown[];
   crew: unknown[];
+}
+
+interface SavedList {
+  Date: string;
+  Content: string;
 }
 
 export class CacheService {
@@ -68,6 +82,49 @@ export class CacheService {
         table.string("key").primary();
         table.text("value");
         table.timestamp("cached_at").defaultTo(this.db.fn.now());
+      });
+    }
+
+    const hasDiaryTable = await this.db.schema.hasTable("diary");
+    if (!hasDiaryTable) {
+      await this.db.schema.createTable("diary", (table) => {
+        table.string("Date");
+        table.string("Name");
+        table.string("Year");
+        table.string("Letterboxd URI").primary();
+        table.string("Rating");
+        table.string("Rewatch");
+        table.string("Tags");
+        table.string("Watched Date");
+      });
+    }
+
+    const hasRatingsTable = await this.db.schema.hasTable("ratings");
+    if (!hasRatingsTable) {
+      await this.db.schema.createTable("ratings", (table) => {
+        table.string("Date");
+        table.string("Name");
+        table.string("Year");
+        table.string("Letterboxd URI").primary();
+        table.integer("Rating");
+      });
+    }
+
+    const hasWatchlistTable = await this.db.schema.hasTable("watchlist");
+    if (!hasWatchlistTable) {
+      await this.db.schema.createTable("watchlist", (table) => {
+        table.string("Date");
+        table.string("Name");
+        table.string("Year");
+        table.string("Letterboxd URI").primary();
+      });
+    }
+
+    const hasSavedListsTable = await this.db.schema.hasTable("saved_lists");
+    if (!hasSavedListsTable) {
+      await this.db.schema.createTable("saved_lists", (table) => {
+        table.string("Date");
+        table.string("Content").primary();
       });
     }
 
@@ -161,5 +218,48 @@ export class CacheService {
       cached.results = JSON.parse(cached.results);
     }
     return cached;
+  }
+
+  async saveDiaryEntries(entries: DiaryEntry[]) {
+    await this.db("diary").del();
+    await this.db.batchInsert("diary", entries);
+  }
+
+  async getDiaryEntries(): Promise<DiaryEntry[]> {
+    return this.db("diary").select();
+  }
+
+  async saveRatingEntries(entries: RatingEntry[]) {
+    await this.db("ratings").del();
+    await this.db.batchInsert("ratings", entries);
+  }
+
+  async getRatingEntries(): Promise<RatingEntry[]> {
+    return this.db("ratings").select();
+  }
+
+  async saveWatchlistEntries(entries: WatchlistEntry[]) {
+    await this.db("watchlist").del();
+    await this.db.batchInsert("watchlist", entries);
+  }
+
+  async getWatchlistEntries(): Promise<WatchlistEntry[]> {
+    return this.db("watchlist").select();
+  }
+
+  async saveSavedLists(entries: SavedList[]) {
+    await this.db("saved_lists").del();
+    await this.db.batchInsert("saved_lists", entries);
+  }
+
+  async getSavedLists(): Promise<SavedList[]> {
+    return this.db("saved_lists").select();
+  }
+
+  public async getPreviousAvailability(): Promise<WatchlistAvailability> {
+    const availability = await this.get<WatchlistAvailability>(
+      "watchlist-availability",
+    );
+    return availability || {};
   }
 }

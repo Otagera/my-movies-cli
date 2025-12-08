@@ -1,14 +1,5 @@
-import { loadCsvData, WatchlistEntry } from "../data/loader";
 import { TMDbService } from "./tmdb.service";
-import { CacheService } from "./cache.service";
-
-export interface WatchlistAvailability {
-  [movieName: string]: {
-    isAvailable: boolean;
-    providers: string[];
-    link?: string;
-  };
-}
+import { CacheService, WatchlistAvailability } from "./cache.service";
 
 interface Provider {
   provider_name: string;
@@ -32,13 +23,13 @@ export class WatchlistService {
   }
 
   public async checkForAvailabilityChanges(): Promise<string[]> {
-    const watchlist = await loadCsvData<WatchlistEntry>("watchlist.csv");
-    const previousAvailability = await this.getPreviousAvailability();
+    const watchlist = await this.cacheService.getWatchlistEntries();
+    const previousAvailability = await this.cacheService.getPreviousAvailability();
     const currentAvailability: WatchlistAvailability = {};
     const changes: string[] = [];
 
     for (const entry of watchlist) {
-      const movieName = entry.Name;
+      const movieName = (entry as any).Name;
       const movie = await this.tmdbService.searchMovie(movieName);
       if (movie) {
         const providers = await this.tmdbService.getWatchProviders(movie.id);
@@ -61,7 +52,11 @@ export class WatchlistService {
         ) {
           if (currentAvailability[movieName].isAvailable) {
             changes.push(
-              `${movieName} is now available on ${currentAvailability[movieName].providers.join(", ")}. Watch here: ${currentAvailability[movieName].link}`,
+              `${movieName} is now available on ${currentAvailability[
+                movieName
+              ].providers.join(", ")}. Watch here: ${
+                currentAvailability[movieName].link
+              }`,
             );
           } else {
             changes.push(
@@ -77,10 +72,26 @@ export class WatchlistService {
     return changes;
   }
 
-  private async getPreviousAvailability(): Promise<WatchlistAvailability> {
-    const availability = await this.cacheService.get<WatchlistAvailability>(
-      "watchlist-availability",
-    );
-    return availability || {};
+  public async getAvailableMoviesFromCache(): Promise<string[]> {
+    const availability =
+      await this.cacheService.get<WatchlistAvailability>(
+        "watchlist-availability",
+      );
+    if (!availability) {
+      return [];
+    }
+
+    const availableMovies: string[] = [];
+    for (const movieName in availability) {
+      if (availability[movieName].isAvailable) {
+        availableMovies.push(
+          `${movieName} is available on ${availability[
+            movieName
+          ].providers.join(", ")}. Watch here: ${availability[movieName].link}`,
+        );
+      }
+    }
+
+    return availableMovies;
   }
 }
