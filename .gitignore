@@ -18,3 +18,6 @@ src/data
 # AI related files
 GEMINI.md
 cache.sqlite
+host.key\nhost.key.pub
+host.key
+host.key.pub
