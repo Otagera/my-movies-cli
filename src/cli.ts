@@ -10,700 +10,757 @@ import { DataSyncService } from "./services/data-sync.service";
 
 // Helper function to create and manage a spinner
 function createSpinner(text: string, output: NodeJS.WritableStream) {
-  const spinner = cliSpinners.dots;
-  let i = 0;
-  let interval: NodeJS.Timeout;
+	const spinner = cliSpinners.dots;
+	let i = 0;
+	let interval: NodeJS.Timeout;
 
-  const self = {
-    start: () => {
-      interval = setInterval(() => {
-        output.write(
-          `\r${spinner.frames[(i = ++i % spinner.frames.length)]} ${text}`,
-        );
-      }, spinner.interval);
-      return self;
-    },
-    stop: () => {
-      clearInterval(interval);
-      output.write("\r"); // Clear the line
-      return self;
-    },
-    succeed: (message: string) => {
-      clearInterval(interval);
-      output.write(`\r✔ ${message}\n`);
-      return self;
-    },
-    fail: (message: string) => {
-      clearInterval(interval);
-      output.write(`\r✖ ${message}\n`);
-      return self;
-    },
-  };
-  return self;
-}
-
-interface SavedList {
-  Date: string;
-  Content: string;
+	const self = {
+		start: () => {
+			interval = setInterval(() => {
+				output.write(
+					`\r${spinner.frames[(i = ++i % spinner.frames.length)]} ${text}`,
+				);
+			}, spinner.interval);
+			return self;
+		},
+		stop: () => {
+			clearInterval(interval);
+			output.write("\r"); // Clear the line
+			return self;
+		},
+		succeed: (message: string) => {
+			clearInterval(interval);
+			output.write(`\r✔ ${message}\n`);
+			return self;
+		},
+		fail: (message: string) => {
+			clearInterval(interval);
+			output.write(`\r✖ ${message}\n`);
+			return self;
+		},
+	};
+	return self;
 }
 
 export async function runCli(options?: {
-  input: NodeJS.ReadableStream;
-  output: NodeJS.WritableStream;
+	input: NodeJS.ReadableStream;
+	output: NodeJS.WritableStream;
 }) {
-  dotenv.config();
-  const isSSH = !!options;
+	dotenv.config();
+	const isSSH = !!options;
 
-  const cacheService = new CacheService();
-  await cacheService.init();
+	const cacheService = new CacheService();
+	await cacheService.init();
 
-  // Load data from all sources
-  let diaryData = await cacheService.getDiaryEntries();
-  let watchlistData = await cacheService.getWatchlistEntries();
-  let ratingsData = await cacheService.getRatingEntries();
-  let savedLists = await cacheService.getSavedLists();
+	// Load data from all sources
+	let diaryData = await cacheService.getDiaryEntries();
+	let watchlistData = await cacheService.getWatchlistEntries();
+	let ratingsData = await cacheService.getRatingEntries();
+	let savedLists = await cacheService.getSavedLists();
 
-  let subscribedServices =
-    (await cacheService.get<string[]>("streaming_services")) || [];
-  const tmdbApiKey = process.env.TMDB_API_KEY;
-  const countryCode = process.env.STREAMING_COUNTRY_CODE;
+	let subscribedServices =
+		(await cacheService.get<string[]>("streaming_services")) || [];
+	const tmdbApiKey = process.env.TMDB_API_KEY;
+	const countryCode = process.env.STREAMING_COUNTRY_CODE;
 
-  let originalConsoleLog: ((...args: any[]) => void) | undefined = undefined;
-  let originalConsoleError: ((...args: any[]) => void) | undefined = undefined;
-  let originalProcessStdoutWrite:
-    | ((
-        chunk: string | Uint8Array,
-        cb?: (err?: Error | null | undefined) => void,
-      ) => boolean)
-    | undefined = undefined;
-  let originalStreamWrite: NodeJS.WritableStream['write'] | undefined = undefined;
+	  let originalConsoleLog: ((...args: unknown[]) => void) | undefined = undefined;
+	  let originalConsoleError: ((...args: unknown[]) => void) | undefined = undefined;	let originalProcessStdoutWrite:
+		| ((
+				chunk: string | Uint8Array,
+				cb?: (err?: Error | null | undefined) => void,
+		  ) => boolean)
+		| undefined = undefined;
+	let originalStreamWrite: NodeJS.WritableStream["write"] | undefined =
+		undefined;
 
-  if (isSSH) {
-    originalConsoleLog = console.log;
-    originalConsoleError = console.error;
-    originalProcessStdoutWrite = process.stdout.write;
-    originalStreamWrite = options.output.write.bind(options.output);
+	if (isSSH) {
+		originalConsoleLog = console.log;
+		originalConsoleError = console.error;
+		originalProcessStdoutWrite = process.stdout.write;
+		originalStreamWrite = options.output.write.bind(options.output);
 
-    options.output.write = (chunk: any, encodingOrCb?: any, cb?: any) => {
-      let newChunk = chunk;
-      if (typeof chunk === 'string') {
-        newChunk = chunk.replace(/(?<!\r)\n/g, '\r\n');
-      }
-      return originalStreamWrite!(newChunk, encodingOrCb, cb);
-    };
+		options.output.write = (chunk: any, encodingOrCb?: any, cb?: any) => {
+			let newChunk = chunk;
+			if (typeof chunk === "string") {
+				newChunk = chunk.replace(/(?<!\r)\n/g, "\r\n");
+			}
+			return originalStreamWrite!(newChunk, encodingOrCb, cb);
+		};
 
-    console.log = (...args: any[]) => {
-      options.output.write(args.join(" ") + "\n");
-    };
-    console.error = (...args: any[]) => {
-      options.output.write(args.join(" ") + "\n");
-    };
-    (process.stdout.write as any) = (
-      chunk: string | Uint8Array,
-      cb?: (err?: Error | null | undefined) => void,
-    ) => {
-      return options.output.write(chunk, cb);
-    };
-  }
+		console.log = (...args: any[]) => {
+			options.output.write(args.join(" ") + "\n");
+		};
+		console.error = (...args: any[]) => {
+			options.output.write(args.join(" ") + "\n");
+		};
+		(process.stdout.write as any) = (
+			chunk: string | Uint8Array,
+			cb?: (err?: Error | null | undefined) => void,
+		) => {
+			return options.output.write(chunk, cb);
+		};
+	}
 
-  try {
-    if (!tmdbApiKey || !countryCode) {
-      console.error(
-        "Please ensure TMDB_API_KEY and STREAMING_COUNTRY_CODE are set in your .env file.",
-      );
-      if (isSSH) return;
-      process.exit(1);
-    }
+	try {
+		if (!tmdbApiKey || !countryCode) {
+			console.error(
+				"Please ensure TMDB_API_KEY and STREAMING_COUNTRY_CODE are set in your .env file.",
+			);
+			if (isSSH) return;
+			process.exit(1);
+		}
 
-    const dataSyncService = new DataSyncService(cacheService);
+		const dataSyncService = new DataSyncService(cacheService);
 
-    const tmdbService = new TMDbService(tmdbApiKey, cacheService);
-    const recommendationService = new RecommendationService(tmdbService);
-    const letterboxdService = new LetterboxdService(cacheService);
-    const watchlistService = new WatchlistService(
-      tmdbService,
-      cacheService,
-      subscribedServices,
-      countryCode,
-    );
+		const tmdbService = new TMDbService(tmdbApiKey, cacheService);
+		const recommendationService = new RecommendationService(tmdbService);
+		await recommendationService.init();
+		const letterboxdService = new LetterboxdService(cacheService);
+		const watchlistService = new WatchlistService(
+			tmdbService,
+			cacheService,
+			subscribedServices,
+			countryCode,
+		);
 
-    const prompt = inquirer.createPromptModule({
-      input: (options?.input as any) || process.stdin,
-      output: (options?.output as any) || process.stdout,
-    });
+		    const prompt = inquirer.createPromptModule({
+		      input: (options?.input as NodeJS.ReadStream) || (process.stdin as NodeJS.ReadStream),
+		      output: (options?.output as NodeJS.WriteStream) || (process.stdout as NodeJS.WriteStream),
+		    });
+		// Log loaded data
+		if (diaryData.length > 0)
+			console.log(`Successfully loaded ${diaryData.length} diary entries.`);
+		if (watchlistData.length > 0)
+			console.log(
+				`Successfully loaded ${watchlistData.length} watchlist entries. `,
+			);
+		if (ratingsData.length > 0)
+			console.log(`Successfully loaded ${ratingsData.length} ratings.`);
+		if (savedLists.length > 0)
+			console.log(`Successfully loaded ${savedLists.length} saved lists.`);
 
-    // Log loaded data
-    if (diaryData.length > 0)
-      console.log(`Successfully loaded ${diaryData.length} diary entries.`);
-    if (watchlistData.length > 0)
-      console.log(
-        `Successfully loaded ${watchlistData.length} watchlist entries. `,
-      );
-    if (ratingsData.length > 0)
-      console.log(`Successfully loaded ${ratingsData.length} ratings.`);
-    if (savedLists.length > 0)
-      console.log(`Successfully loaded ${savedLists.length} saved lists.`);
+		while (true) {
+			try {
+				const { action } = await prompt([
+					{
+						type: "list",
+						name: "action",
+						message: "What do you want to ask?",
+						choices: [
+							"Get personalized recommendations",
+							"Find where to watch a movie",
+							"Suggest a random movie to watch",
+							new inquirer.Separator(),
+							new inquirer.Separator(),
+							"How many movies have I watched?",
+							"How many movies are on my watchlist?",
+							new inquirer.Separator(),
+							new inquirer.Separator(),
+							"List movies watched in a specific year",
+							"List all movies on my watchlist",
+							"List available streaming services",
+							"Get movies from a Letterboxd list",
+							"Check for watchlist availability changes",
+							"List available movies on my watchlist",
+							new inquirer.Separator(),
+							new inquirer.Separator(),
+							"Set streaming services",
+							new inquirer.Separator(),
+							new inquirer.Separator(),
+							"Sync data with Letterboxd",
+							"Exit",
+						],
+					},
+				]);
 
-    while (true) {
-      try {
-        const { action } = await prompt([
-          {
-            type: "list",
-            name: "action",
-            message: "What do you want to ask?",
-            choices: [
-              "Get personalized recommendations",
-              "Find where to watch a movie",
-              "Suggest a random movie to watch",
-              new inquirer.Separator(),
-              new inquirer.Separator(),
-              "How many movies have I watched?",
-              "How many movies are on my watchlist?",
-              new inquirer.Separator(),
-              new inquirer.Separator(),
-              "List movies watched in a specific year",
-              "List all movies on my watchlist",
-              "List available streaming services",
-              "Get movies from a Letterboxd list",
-              "Check for watchlist availability changes",
-              "List available movies on my watchlist",
-              new inquirer.Separator(),
-              new inquirer.Separator(),
-              "Set streaming services",
-              new inquirer.Separator(),
-              new inquirer.Separator(),
-              "Sync data with Letterboxd",
-              "Exit",
-            ],
-          },
-        ]);
+				const highlyRatedMovies = ratingsData.filter((r) => r.Rating >= 4);
 
-        const highlyRatedMovies = ratingsData.filter((r) => r.Rating >= 4);
+				switch (action) {
+					case "List available movies on my watchlist": {
+						const availableMovies =
+							await watchlistService.getAvailableMoviesFromCache();
+						if (availableMovies.length > 0) {
+							console.log("Available movies on your watchlist:");
+							availableMovies.forEach((movie) => console.log(`- ${movie}`));
+						} else {
+							console.log(
+								"No available movies found on your watchlist. Run 'Check for watchlist availability changes' to update.",
+							);
+						}
+						break;
+					}
+					case "Set streaming services": {
+						const availableProviders =
+							await tmdbService.getAvailableProviders(countryCode);
+						const availableProviderNames = availableProviders.map(
+							(p: { provider_name: string }) => p.provider_name.toLowerCase(),
+						);
 
-        switch (action) {
-          case "List available movies on my watchlist": {
-            const availableMovies =
-              await watchlistService.getAvailableMoviesFromCache();
-            if (availableMovies.length > 0) {
-              console.log("Available movies on your watchlist:");
-              availableMovies.forEach((movie) => console.log(`- ${movie}`));
-            } else {
-              console.log(
-                "No available movies found on your watchlist. Run 'Check for watchlist availability changes' to update.",
-              );
-            }
-            break;
-          }
-          case "Set streaming services": {
-            const availableProviders =
-              await tmdbService.getAvailableProviders(countryCode);
-            const availableProviderNames = availableProviders.map(
-              (p: { provider_name: string }) => p.provider_name.toLowerCase(),
-            );
+						while (true) {
+							const { services } = await prompt([
+								{
+									type: "input",
+									name: "services",
+									message:
+										"Enter your comma-separated streaming services (e.g. Netflix, Hulu):",
+								},
+							]);
 
-            while (true) {
-              const { services } = await prompt([
-                {
-                  type: "input",
-                  name: "services",
-                  message:
-                    "Enter your comma-separated streaming services (e.g. Netflix, Hulu):",
-                },
-              ]);
+							const servicesArray = services
+								.split(",")
+								.map((s: string) => s.trim().toLowerCase());
 
-              const servicesArray = services
-                .split(",")
-                .map((s: string) => s.trim().toLowerCase());
+							const invalidServices = servicesArray.filter(
+								(s: string) => !availableProviderNames.includes(s),
+							);
 
-              const invalidServices = servicesArray.filter(
-                (s: string) => !availableProviderNames.includes(s),
-              );
+							if (invalidServices.length > 0) {
+								console.error(
+									`Invalid services: ${invalidServices.join(
+										", ",
+									)}. Please try again. `,
+								);
+							} else {
+								await cacheService.set("streaming_services", servicesArray);
+								subscribedServices = servicesArray;
+								console.log("Streaming services saved.");
+								break;
+							}
+						}
+						break;
+					}
+					case "Sync data with Letterboxd": {
+						await dataSyncService.syncData();
+						// Reload data from cache
+						diaryData = await cacheService.getDiaryEntries();
+						watchlistData = await cacheService.getWatchlistEntries();
+						ratingsData = await cacheService.getRatingEntries();
+						savedLists = await cacheService.getSavedLists();
+						break;
+					}
+					case "Get personalized recommendations": {
+						let recommendations;
+						let recommendationMessage;
 
-              if (invalidServices.length > 0) {
-                console.error(
-                  `Invalid services: ${invalidServices.join(
-                    ", ",
-                  )}. Please try again. `,
-                );
-              } else {
-                await cacheService.set("streaming_services", servicesArray);
-                subscribedServices = servicesArray;
-                console.log("Streaming services saved.");
-                break;
-              }
-            }
-            break;
-          }
-          case "Sync data with Letterboxd": {
-            await dataSyncService.syncData();
-            // Reload data from cache
-            diaryData = await cacheService.getDiaryEntries();
-            watchlistData = await cacheService.getWatchlistEntries();
-            ratingsData = await cacheService.getRatingEntries();
-            savedLists = await cacheService.getSavedLists();
-            break;
-          }
-          case "Get personalized recommendations": {
-            let recommendations;
-            let recommendationMessage;
+						const { recommendationChoice } = await prompt([
+							{
+								type: "list",
+								name: "recommendationChoice",
+								message: "What kind of recommendations do you want?",
+								choices: [
+									"Recommendations available on my services",
+									"All recommendations",
+								],
+							},
+						]);
 
-            const { recommendationChoice } = await prompt([
-              {
-                type: "list",
-                name: "recommendationChoice",
-                message: "What kind of recommendations do you want?",
-                choices: [
-                  "Recommendations available on my services",
-                  "All recommendations",
-                ],
-              },
-            ]);
+						if (
+							recommendationChoice ===
+							"Recommendations available on my services"
+						) {
+							if (
+								subscribedServices.length === 0 ||
+								subscribedServices[0] === ""
+							) {
+								console.error(
+									"Please add your STREAMING_SERVICES to the .env file to use this option.",
+								);
+								break;
+							}
+							recommendations = await recommendationService.getRecommendations(
+								diaryData,
+								watchlistData,
+								highlyRatedMovies,
+								subscribedServices,
+								countryCode,
+							);
+							recommendationMessage =
+								"Here are your top 5 personalized movie recommendations (available on your subscribed services):";
+						} else {
+							recommendations = await recommendationService.getRecommendations(
+								diaryData,
+								watchlistData,
+								highlyRatedMovies,
+							);
+							recommendationMessage =
+								"Here are your top 5 personalized movie recommendations (all):";
+						}
 
-            if (
-              recommendationChoice === "Recommendations available on my services"
-            ) {
-              if (
-                subscribedServices.length === 0 ||
-                subscribedServices[0] === ""
-              ) {
-                console.error(
-                  "Please add your STREAMING_SERVICES to the .env file to use this option.",
-                );
-                break;
-              }
-              recommendations = await recommendationService.getRecommendations(
-                diaryData,
-                watchlistData,
-                highlyRatedMovies,
-                subscribedServices,
-                countryCode,
-              );
-              recommendationMessage =
-                "Here are your top 5 personalized movie recommendations (available on your subscribed services):";
-            } else {
-              recommendations = await recommendationService.getRecommendations(
-                diaryData,
-                watchlistData,
-                highlyRatedMovies,
-              );
-              recommendationMessage =
-                "Here are your top 5 personalized movie recommendations (all):";
-            }
+						if (recommendations.length > 0) {
+							console.log(`\n${recommendationMessage}`);
+							recommendations.forEach(
+								(movie: { title: string; score: number }, index: number) => {
+									console.log(
+										`${index + 1}. ${movie.title} (Score: ${movie.score})`,
+									);
+								},
+							);
+						} else {
+							console.log("No new movie recommendations found at this time.");
+						}
+						break;
+					}
 
-            if (recommendations.length > 0) {
-              console.log(`\n${recommendationMessage}`);
-              recommendations.forEach(
-                (movie: { title: string; score: number }, index: number) => {
-                  console.log(
-                    `${index + 1}. ${movie.title} (Score: ${movie.score})`,
-                  );
-                },
-              );
-            } else {
-              console.log("No new movie recommendations found at this time.");
-            }
-            break;
-          }
+					case "Suggest a random movie with details": {
+						const randomRecommendation =
+							await recommendationService.getRandomRecommendationWithDetails(
+								highlyRatedMovies,
+								diaryData,
+								watchlistData,
+							);
+						if (randomRecommendation.movie) {
+							console.log(
+								`\nHow about watching: ${randomRecommendation.movie.title} (${new Date(randomRecommendation.movie.release_date).getFullYear()})?`,
+							);
+							console.log("Reasons you might like this:");
+							randomRecommendation.reasons.forEach((reason) =>
+								console.log(`- ${reason}`),
+							);
+						} else {
+							console.log("Could not suggest a random movie at this time.");
+						}
+						break;
+					}
 
-          case "Suggest a random movie with details": {
-            const randomRecommendation =
-              await recommendationService.getRandomRecommendationWithDetails(
-                highlyRatedMovies,
-                diaryData,
-                watchlistData,
-              );
-            if (randomRecommendation.movie) {
-              console.log(`\nHow about watching: ${randomRecommendation.movie.title} (${new Date(randomRecommendation.movie.release_date).getFullYear()})?`);
-              console.log("Reasons you might like this:");
-              randomRecommendation.reasons.forEach((reason) =>
-                console.log(`- ${reason}`)
-              );
-            } else {
-              console.log("Could not suggest a random movie at this time.");
-            }
-            break;
-          }
+					case "How many movies have I watched?": {
+						console.log("You have watched " + diaryData.length + " movies.");
+						break;
+					}
 
-          case "How many movies have I watched?": {
-            console.log("You have watched " + diaryData.length + " movies.");
-            break;
-          }
+					case "List movies watched in a specific year": {
+						const { year } = await prompt([
+							{
+								type: "input",
+								name: "year",
+								message: "Enter the year:",
+								validate: (input: string) =>
+									/^\d{4}$/.test(input) ||
+									"Please enter a valid four-digit year.",
+							},
+						]);
+						const moviesInYear = diaryData.filter(
+							(entry) =>
+								new Date(entry["Watched Date"]).getFullYear() ===
+								parseInt(year),
+						);
+						if (moviesInYear.length > 0) {
+							console.log("Movies watched in " + year + ":");
+							moviesInYear.forEach((entry) => console.log("- " + entry.Name));
+						} else {
+							console.log("No movies found for the year " + year + ".");
+						}
+						break;
+					}
 
-          case "List movies watched in a specific year": {
-            const { year } = await prompt([
-              {
-                type: "input",
-                name: "year",
-                message: "Enter the year:",
-                validate: (input: string) =>
-                  /^\d{4}$/.test(input) ||
-                  "Please enter a valid four-digit year.",
-              },
-            ]);
-            const moviesInYear = diaryData.filter(
-              (entry) =>
-                new Date(entry["Watched Date"]).getFullYear() === parseInt(year),
-            );
-            if (moviesInYear.length > 0) {
-              console.log("Movies watched in " + year + ":");
-              moviesInYear.forEach((entry) => console.log("- " + entry.Name));
-            } else {
-              console.log("No movies found for the year " + year + ".");
-            }
-            break;
-          }
+					case "How many movies are on my watchlist?": {
+						console.log(
+							"You have " + watchlistData.length + " movies on your watchlist.",
+						);
+						break;
+					}
 
-          case "How many movies are on my watchlist?": {
-            console.log("You have " + watchlistData.length + " movies on your watchlist.");
-            break;
-          }
+					case "List all movies on my watchlist": {
+						watchlistData.forEach((entry) => console.log("- " + entry.Name));
+						break;
+					}
 
-          case "List all movies on my watchlist": {
-            watchlistData.forEach((entry) => console.log("- " + entry.Name));
-            break;
-          }
+					case "Find where to watch a movie": {
+						const { movieTitle } = await prompt([
+							{
+								type: "input",
+								name: "movieTitle",
+								message: "Enter the movie title to search for:",
+							},
+						]);
+						try {
+							const movie = await tmdbService.searchMovie(movieTitle);
+							if (!movie) {
+								console.log("Movie not found on TMDb.");
+								break;
+							}
+							console.log(
+								"Found movie: " +
+									movie.title +
+									" (" +
+									new Date(movie.release_date).getFullYear() +
+									")",
+							);
+							const providers = await tmdbService.getWatchProviders(movie.id);
+							const countryProviders = providers[countryCode.toUpperCase()];
 
-          case "Find where to watch a movie": {
-            const { movieTitle } = await prompt([
-              {
-                type: "input",
-                name: "movieTitle",
-                message: "Enter the movie title to search for:",
-              },
-            ]);
-            try {
-              const movie = await tmdbService.searchMovie(movieTitle);
-              if (!movie) {
-                console.log("Movie not found on TMDb.");
-                break;
-              }
-              console.log("Found movie: " + movie.title + " (" + new Date(movie.release_date).getFullYear() + ")");
-              const providers = await tmdbService.getWatchProviders(movie.id);
-              const countryProviders = providers[countryCode.toUpperCase()];
+							if (
+								countryProviders &&
+								countryProviders.link &&
+								countryProviders.flatrate
+							) {
+								console.log("Available to stream on:");
+								countryProviders.flatrate.forEach(
+									(provider: { provider_name: string }) => {
+										const isSubscribed = subscribedServices.includes(
+											provider.provider_name.toLowerCase(),
+										);
+										console.log(
+											"- " +
+												provider.provider_name +
+												" " +
+												(isSubscribed ? "(Subscribed)" : ""),
+										);
+									},
+								);
+								console.log("\nWatch it here: " + countryProviders.link);
+							} else {
+								console.log("Not available for streaming in your country.");
+							}
+						} catch (e) {
+							console.error("Error finding movie:", e);
+						}
+						break;
+					}
 
-              if (
-                countryProviders &&
-                countryProviders.link &&
-                countryProviders.flatrate
-              ) {
-                console.log("Available to stream on:");
-                countryProviders.flatrate.forEach(
-                  (provider: { provider_name: string }) => {
-                    const isSubscribed = subscribedServices.includes(
-                      provider.provider_name.toLowerCase(),
-                    );
-                    console.log(
-                      "- " + provider.provider_name + " " + (isSubscribed ? "(Subscribed)" : "")
-                    );
-                  },
-                );
-                console.log("\nWatch it here: " + countryProviders.link);
-              } else {
-                console.log("Not available for streaming in your country.");
-              }
-            } catch (e) {
-              console.error("Error finding movie:", e);
-            }
-            break;
-          }
+					case "Suggest a random movie to watch": {
+						if (watchlistData.length === 0) {
+							console.log("Your watchlist is empty.");
+							break;
+						}
+						if (
+							subscribedServices.length === 0 ||
+							subscribedServices[0] === ""
+						) {
+							console.error(
+								"Please add your STREAMING_SERVICES to the .env file.",
+							);
+							break;
+						}
+						let suggestionFound = false;
+						const shuffledWatchlist = [...watchlistData].sort(
+							() => 0.5 - Math.random(),
+						);
 
-          case "Suggest a random movie to watch": {
-            if (watchlistData.length === 0) {
-              console.log("Your watchlist is empty.");
-              break;
-            }
-            if (subscribedServices.length === 0 || subscribedServices[0] === "") {
-              console.error(
-                "Please add your STREAMING_SERVICES to the .env file.",
-              );
-              break;
-            }
-            let suggestionFound = false;
-            const shuffledWatchlist = [...watchlistData].sort(
-              () => 0.5 - Math.random(),
-            );
+						for (const movie of shuffledWatchlist) {
+							try {
+								const tmdbMovie = await tmdbService.searchMovie(movie.Name);
+								if (!tmdbMovie) continue;
 
-            for (const movie of shuffledWatchlist) {
-              try {
-                const tmdbMovie = await tmdbService.searchMovie(movie.Name);
-                if (!tmdbMovie) continue;
+								const providers = await tmdbService.getWatchProviders(
+									tmdbMovie.id,
+								);
+								const countryProviders = providers[countryCode.toUpperCase()];
 
-                const providers = await tmdbService.getWatchProviders(
-                  tmdbMovie.id,
-                );
-                const countryProviders = providers[countryCode.toUpperCase()];
+								if (
+									countryProviders &&
+									countryProviders.link &&
+									countryProviders.flatrate
+								) {
+									const availableOnSubscribed =
+										countryProviders.flatrate.filter(
+											(provider: { provider_name: string }) =>
+												subscribedServices.includes(
+													provider.provider_name.toLowerCase(),
+												),
+										);
 
-                if (
-                  countryProviders &&
-                  countryProviders.link &&
-                  countryProviders.flatrate
-                ) {
-                  const availableOnSubscribed = countryProviders.flatrate.filter(
-                    (provider: { provider_name: string }) =>
-                      subscribedServices.includes(
-                        provider.provider_name.toLowerCase(),
-                      ),
-                  );
+									if (availableOnSubscribed.length > 0) {
+										console.log("How about watching: " + movie.Name + "?");
+										console.log("You can stream it on:");
+										availableOnSubscribed.forEach(
+											(provider: { provider_name: string }) =>
+												console.log(`- ${provider.provider_name}`),
+										);
+										console.log("\nWatch it here: " + countryProviders.link);
+										suggestionFound = true;
+										break;
+									}
+								}
+							} catch {
+								/* Ignore and continue */
+							}
+						}
+						if (!suggestionFound) {
+							console.log(
+								"Could not find any movie from your watchlist available on your subscribed services.",
+							);
+						}
+						break;
+					}
 
-                  if (availableOnSubscribed.length > 0) {
-                    console.log("How about watching: " + movie.Name + "?");
-                    console.log("You can stream it on:");
-                    availableOnSubscribed.forEach(
-                      (provider: { provider_name: string }) =>
-                        console.log(`- ${provider.provider_name}`),
-                    );
-                    console.log("\nWatch it here: " + countryProviders.link);
-                    suggestionFound = true;
-                    break;
-                  }
-                }
-              } catch {
-                /* Ignore and continue */
-              }
-            }
-            if (!suggestionFound) {
-              console.log(
-                "Could not find any movie from your watchlist available on your subscribed services.",
-              );
-            }
-            break;
-          }
+					case "List available streaming services": {
+						try {
+							const providers =
+								await tmdbService.getAvailableProviders(countryCode);
+							if (providers && providers.length > 0) {
+								console.log(
+									"Available streaming services in " +
+										countryCode.toUpperCase() +
+										":",
+								);
+								const providerNames = providers
+									.map(
+										(provider: { provider_name: string }) =>
+											provider.provider_name,
+									)
+									.sort();
+								console.log(providerNames.join("\n"));
+								console.log(
+									"\nCopy the exact names of the services you subscribe to and add them to the STREAMING_SERVICES variable in your .env file, separated by commas.",
+								);
+							} else {
+								console.log(
+									"Could not find any streaming services for country code: " +
+										countryCode.toUpperCase(),
+								);
+							}
+						} catch (e) {
+							console.error("Error fetching streaming services:", e);
+						}
+						break;
+					}
 
-          case "List available streaming services": {
-            try {
-              const providers =
-                await tmdbService.getAvailableProviders(countryCode);
-              if (providers && providers.length > 0) {
-                            console.log("Available streaming services in " + countryCode.toUpperCase() + ":");
-                const providerNames = providers
-                  .map(
-                    (provider: { provider_name: string }) =>
-                      provider.provider_name,
-                  )
-                  .sort();
-                console.log(providerNames.join("\n"));
-                console.log(
-                  "\nCopy the exact names of the services you subscribe to and add them to the STREAMING_SERVICES variable in your .env file, separated by commas.",
-                );
-              } else {
-                            console.log("Could not find any streaming services for country code: " + countryCode.toUpperCase());
-              }
-            } catch (e) {
-              console.error("Error fetching streaming services:", e);
-            }
-            break;
-          }
+					case "Get movies from a Letterboxd list": {
+						let listUrl: string | undefined;
+						const listChoices = [
+							...savedLists.map((l) => ({ name: l.Content, value: l.Content })),
+							{ name: "Enter a new URL", value: "new" },
+						];
+						const { listSelection } = await prompt([
+							{
+								type: "list",
+								name: "listSelection",
+								message: "Choose a saved list or enter a new one:",
+								choices: listChoices,
+							},
+						]);
 
-          case "Get movies from a Letterboxd list": {
-            let listUrl: string | undefined;
-            const listChoices = [
-              ...savedLists.map((l) => ({ name: l.Content, value: l.Content })),
-              { name: "Enter a new URL", value: "new" },
-            ];
-            const { listSelection } = await prompt([
-              {
-                type: "list",
-                name: "listSelection",
-                message: "Choose a saved list or enter a new one:",
-                choices: listChoices,
-              },
-            ]);
+						if (listSelection === "new") {
+							const { newListUrl } = await prompt([
+								{
+									type: "input",
+									name: "newListUrl",
+									message: "Enter the Letterboxd list URL:",
+								},
+							]);
+							listUrl = newListUrl;
+							// We won't ask to save the list anymore since we're using a CSV
+						} else {
+							listUrl = listSelection;
+						}
 
-            if (listSelection === "new") {
-              const { newListUrl } = await prompt([
-                {
-                  type: "input",
-                  name: "newListUrl",
-                  message: "Enter the Letterboxd list URL:",
-                },
-              ]);
-              listUrl = newListUrl;
-              // We won't ask to save the list anymore since we're using a CSV
-            } else {
-              listUrl = listSelection;
-            }
+						if (!listUrl) {
+							console.error("No list URL provided.");
+							break;
+						}
 
-            if (!listUrl) {
-              console.error("No list URL provided.");
-              break;
-            }
+						const listSpinner = createSpinner(
+							"Fetching list from Letterboxd...",
+							options?.output || process.stdout,
+						).start();
+						try {
+							const movies = await letterboxdService.getMoviesFromList(listUrl);
+							listSpinner.succeed(
+								"Found " + movies.length + " movies in the list.",
+							);
 
-            const listSpinner = createSpinner(
-              "Fetching list from Letterboxd...",
-              options?.output || process.stdout,
-            ).start();
-            try {
-              const movies = await letterboxdService.getMoviesFromList(listUrl);
-              listSpinner.succeed("Found " + movies.length + " movies in the list.");
+							if (movies.length > 0) {
+								const { findWatchProviders } = await prompt([
+									{
+										type: "confirm",
+										name: "findWatchProviders",
+										message: "Do you want to find where to watch these movies?",
+										default: true,
+									},
+								]);
 
-              if (movies.length > 0) {
-                const { findWatchProviders } = await prompt([
-                  {
-                    type: "confirm",
-                    name: "findWatchProviders",
-                    message: "Do you want to find where to watch these movies?",
-                    default: true,
-                  },
-                ]);
+								if (findWatchProviders) {
+									const providersSpinner = createSpinner(
+										"Finding watch providers...",
+										options?.output || process.stdout,
+									).start();
+									const subscribedMovies: string[] = [];
+									const otherAvailableMovies: string[] = [];
+									const unavailableMovies: string[] = [];
+									let errorCount = 0;
 
-                if (findWatchProviders) {
-                  const providersSpinner = createSpinner(
-                    "Finding watch providers...",
-                    options?.output || process.stdout,
-                  ).start();
-                  const subscribedMovies: string[] = [];
-                  const otherAvailableMovies: string[] = [];
-                  const unavailableMovies: string[] = [];
-                  let errorCount = 0;
+									for (const movieTitle of movies) {
+										try {
+											const movie = await tmdbService.searchMovie(movieTitle);
+											if (!movie) {
+												unavailableMovies.push(
+													"- " + movieTitle + ": Not found on TMDb.",
+												);
+												continue;
+											}
+											const providers = await tmdbService.getWatchProviders(
+												movie.id,
+											);
+											const countryProviders =
+												providers[countryCode.toUpperCase()];
+											if (
+												countryProviders &&
+												countryProviders.link &&
+												countryProviders.flatrate
+											) {
+												const subscribedProviderNames =
+													countryProviders.flatrate
+														.filter((p: { provider_name: string }) =>
+															subscribedServices.includes(
+																p.provider_name.toLowerCase(),
+															),
+														)
+														.map(
+															(p: { provider_name: string }) => p.provider_name,
+														)
+														.join(", ");
 
-                  for (const movieTitle of movies) {
-                    try {
-                      const movie = await tmdbService.searchMovie(movieTitle);
-                      if (!movie) {
-                        unavailableMovies.push("- " + movieTitle + ": Not found on TMDb.");
-                        continue;
-                      }
-                      const providers = await tmdbService.getWatchProviders(
-                        movie.id,
-                      );
-                      const countryProviders =
-                        providers[countryCode.toUpperCase()];
-                      if (
-                        countryProviders &&
-                        countryProviders.link &&
-                        countryProviders.flatrate
-                      ) {
-                        const subscribedProviderNames = countryProviders.flatrate
-                          .filter((p: { provider_name: string }) =>
-                            subscribedServices.includes(
-                              p.provider_name.toLowerCase(),
-                            ),
-                          )
-                          .map((p: { provider_name: string }) => p.provider_name)
-                          .join(", ");
+												if (subscribedProviderNames) {
+													subscribedMovies.push(
+														"- " +
+															movieTitle +
+															": Available on your services (" +
+															subscribedProviderNames +
+															"). Watch here: " +
+															countryProviders.link,
+													);
+												} else {
+													const otherProviderNames = countryProviders.flatrate
+														.map(
+															(p: { provider_name: string }) => p.provider_name,
+														)
+														.join(", ");
+													otherAvailableMovies.push(
+														"- " +
+															movieTitle +
+															": Available on " +
+															otherProviderNames +
+															". Watch here: " +
+															countryProviders.link,
+													);
+												}
+											} else {
+												unavailableMovies.push(
+													"- " +
+														movieTitle +
+														": Not available for streaming in your country.",
+												);
+											}
+										} catch {
+											if (errorCount === 0) {
+												providersSpinner.fail(
+													"- " +
+														movieTitle +
+														": Error finding watch providers. Further errors will be suppressed.",
+												);
+											}
+											errorCount++;
+											unavailableMovies.push(
+												"- " + movieTitle + ": Error finding watch providers.",
+											);
+										}
+										await new Promise((resolve) => setTimeout(resolve, 250)); // 250ms delay
+									}
+									providersSpinner.succeed("Finished finding providers.");
 
-                        if (subscribedProviderNames) {
-                          subscribedMovies.push("- " + movieTitle + ": Available on your services (" + subscribedProviderNames + "). Watch here: " + countryProviders.link);
-                        } else {
-                          const otherProviderNames = countryProviders.flatrate
-                            .map(
-                              (p: { provider_name: string }) => p.provider_name,
-                            )
-                            .join(", ");
-                          otherAvailableMovies.push("- " + movieTitle + ": Available on " + otherProviderNames + ". Watch here: " + countryProviders.link);
-                        }
-                      } else {
-                        unavailableMovies.push("- " + movieTitle + ": Not available for streaming in your country.");
-                      }
-                    } catch {
-                      if (errorCount === 0) {
-                        providersSpinner.fail("- " + movieTitle + ": Error finding watch providers. Further errors will be suppressed.");
-                      }
-                      errorCount++;
-                                          unavailableMovies.push("- " + movieTitle + ": Error finding watch providers.");                  }
-                    await new Promise((resolve) => setTimeout(resolve, 250)); // 250ms delay
-                  }
-                  providersSpinner.succeed("Finished finding providers.");
+									console.log("\n--- Movies on Your Services ---");
+									if (subscribedMovies.length > 0) {
+										subscribedMovies.forEach((m) => console.log(m));
+									} else {
+										console.log(
+											"None of the movies on this list are available on your subscribed services.",
+										);
+									}
 
-                  console.log("\n--- Movies on Your Services ---");
-                  if (subscribedMovies.length > 0) {
-                    subscribedMovies.forEach((m) => console.log(m));
-                  } else {
-                    console.log(
-                      "None of the movies on this list are available on your subscribed services.",
-                    );
-                  }
+									console.log("\n--- Other Available Movies ---");
+									if (otherAvailableMovies.length > 0) {
+										otherAvailableMovies.forEach((m) => console.log(m));
+									} else {
+										console.log(
+											"No other movies on this list are available for streaming.",
+										);
+									}
 
-                  console.log("\n--- Other Available Movies ---");
-                  if (otherAvailableMovies.length > 0) {
-                    otherAvailableMovies.forEach((m) => console.log(m));
-                  } else {
-                    console.log(
-                      "No other movies on this list are available for streaming.",
-                    );
-                  }
+									console.log("\n--- Unavailable Movies ---");
+									if (unavailableMovies.length > 0) {
+										unavailableMovies.forEach((m) => console.log(m));
+									} else {
+										console.log("All movies on this list are available!");
+									}
+								}
+							} else {
+								movies.forEach((movie) => console.log("- " + movie));
+							}
+						} catch (e) {
+							listSpinner.fail("Error fetching movies from Letterboxd list.");
+							console.error(e);
+						}
+						break;
+					}
 
-                  console.log("\n--- Unavailable Movies ---");
-                  if (unavailableMovies.length > 0) {
-                    unavailableMovies.forEach((m) => console.log(m));
-                  } else {
-                    console.log("All movies on this list are available!");
-                  }
-                }
-              } else {
-                movies.forEach((movie) => console.log("- " + movie));
-              }
-            } catch (e) {
-              listSpinner.fail("Error fetching movies from Letterboxd list.");
-              console.error(e);
-            }
-            break;
-          }
+					case "Check for watchlist availability changes": {
+						const watchlistSpinner = createSpinner(
+							"Checking for watchlist availability changes...",
+							options?.output || process.stdout,
+						).start();
+						try {
+							const changes =
+								await watchlistService.checkForAvailabilityChanges();
+							if (changes.length > 0) {
+								watchlistSpinner.succeed("Found availability changes:");
+								const newlyAvailable = changes.filter((c) =>
+									c.includes("is now available"),
+								);
+								const noLongerAvailable = changes.filter((c) =>
+									c.includes("is no longer available"),
+								);
 
-          case "Check for watchlist availability changes": {
-            const watchlistSpinner = createSpinner(
-              "Checking for watchlist availability changes...",
-              options?.output || process.stdout,
-            ).start();
-            try {
-              const changes =
-                await watchlistService.checkForAvailabilityChanges();
-              if (changes.length > 0) {
-                watchlistSpinner.succeed("Found availability changes:");
-                const newlyAvailable = changes.filter((c) =>
-                  c.includes("is now available"),
-                );
-                const noLongerAvailable = changes.filter((c) =>
-                  c.includes("is no longer available"),
-                );
+								if (newlyAvailable.length > 0) {
+									console.log("\n--- Newly Available ---");
+									newlyAvailable.forEach((change) =>
+										console.log("- " + change),
+									);
+								}
 
-                if (newlyAvailable.length > 0) {
-                  console.log("\n--- Newly Available ---");
-                  newlyAvailable.forEach((change) => console.log("- " + change));
-                }
+								if (noLongerAvailable.length > 0) {
+									console.log("\n--- No Longer Available ---");
+									noLongerAvailable.forEach((change) =>
+										console.log("- " + change),
+									);
+								}
+							} else {
+								watchlistSpinner.succeed(
+									"No changes in watchlist availability.",
+								);
+							}
+						} catch (e) {
+							watchlistSpinner.fail(
+								"Error checking for watchlist availability changes.",
+							);
+							console.error(e);
+						}
+						break;
+					}
 
-                if (noLongerAvailable.length > 0) {
-                  console.log("\n--- No Longer Available ---");
-                  noLongerAvailable.forEach((change) =>
-                    console.log("- " + change)
-                  );
-                }
-              } else {
-                watchlistSpinner.succeed("No changes in watchlist availability.");
-              }
-            } catch (e) {
-              watchlistSpinner.fail(
-                "Error checking for watchlist availability changes.",
-              );
-              console.error(e);
-            }
-            break;
-          }
-
-          case "Exit": {
-            console.log("Goodbye!");
-            if (isSSH) return;
-            process.exit(0);
-          }
-        }
-      } catch (e: unknown) {
-        if (e instanceof Error) {
-          if (e.message.includes("User force closed the prompt")) {
-            console.log("\nGoodbye!");
-            if (isSSH) return;
-            process.exit(0);
-          }
-        }
-        throw e;
-      }
-    }
-  } finally {
-    // Restore original console methods for local CLI when runCli exits (e.g., on exit or error)
-    if (isSSH) {
-      console.log = originalConsoleLog!;
-      console.error = originalConsoleError!;
-      (process.stdout.write as any) = originalProcessStdoutWrite!;
-      options.output.write = originalStreamWrite!;
-    }
-  }
+					case "Exit": {
+						console.log("Goodbye!");
+						if (isSSH) return;
+						process.exit(0);
+					}
+				}
+			} catch (e: unknown) {
+				if (e instanceof Error) {
+					if (e.message.includes("User force closed the prompt")) {
+						console.log("\nGoodbye!");
+						if (isSSH) return;
+						process.exit(0);
+					}
+				}
+				throw e;
+			}
+		}
+	} finally {
+		// Restore original console methods for local CLI when runCli exits (e.g., on exit or error)
+		if (isSSH) {
+			console.log = originalConsoleLog!;
+			console.error = originalConsoleError!;
+			(process.stdout.write as any) = originalProcessStdoutWrite!;
+			options.output.write = originalStreamWrite!;
+		}
+	}
 }

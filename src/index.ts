@@ -1,7 +1,7 @@
 import { runCli } from "./cli";
 
 async function main() {
-  await runCli();
+	await runCli();
 }
 
 main();
