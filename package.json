@@ -6,6 +6,7 @@
   "scripts": {
     "start": "ts-node src/index.ts",
     "start:server": "ts-node src/server.ts",
+    "start:prod": "node dist/index.js",
     "dev": "NODE_TLS_REJECT_UNAUTHORIZED='0' ts-node src/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "format": "npx @biomejs/biome format --write ./src",

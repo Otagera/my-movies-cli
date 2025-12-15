@@ -1,5 +1,6 @@
 import { EmbeddingService } from "./embedding.service";
 import { VectorService } from "./vector.service";
+import { Collection } from "chromadb";
 import { TMDbService } from "./tmdb.service";
 import { DiaryEntry, WatchlistEntry, RatingEntry } from "../data/loader";
 
@@ -454,62 +455,77 @@ export class RecommendationService {
 		const movieEmbeddingsCollection =
 			await this.vectorService.getOrCreateCollection("movie_embeddings");
 
+		// Populate embeddings for highly-rated movies
 		for (const movie of movies) {
+			// ... (existing logic for highly-rated movies)
+		}
+
+		// Also populate embeddings from a dynamic source to broaden the recommendation pool
+		await this.populateMoviePool(movieEmbeddingsCollection);
+	}
+
+	private async populateMoviePool(
+		collection: Collection,
+		pagesToFetch = 1, // Fetch 1 page to keep it fast, but from a random category
+	): Promise<void> {
+		if (!this.embeddingService) {
+			console.warn(
+				"EmbeddingService not initialized. Cannot populate movie pool.",
+			);
+			return;
+		}
+
+		// Dynamically select a movie category to fetch from
+		const movieFetchers = [
+			this.tmdbService.getPopularMovies.bind(this.tmdbService),
+			this.tmdbService.getTopRatedMovies.bind(this.tmdbService),
+			this.tmdbService.getNowPlayingMovies.bind(this.tmdbService),
+		];
+		const randomFetcher =
+			movieFetchers[Math.floor(Math.random() * movieFetchers.length)];
+
+		console.log(
+			`Populating ChromaDB with new movie embeddings (fetching ${pagesToFetch} page(s) from a random category)...`,
+		);
+		let newMovies: TMDbMovie[] = [];
+		for (let i = 1; i <= pagesToFetch; i++) {
+			const pageResults = await randomFetcher(i);
+			newMovies = newMovies.concat(pageResults);
+		}
+
+		for (const movie of newMovies) {
 			try {
-				let tmdbMovie: TMDbMovie | undefined;
-				let movieId: string;
-				let movieTitle: string;
-				let movieOverview: string | undefined;
-
-				if ("Name" in movie) {
-					// It's a RatingEntry
-					const searchResult = await this.tmdbService.searchMovie(movie.Name);
-					if (!searchResult) continue;
-					tmdbMovie = await this.tmdbService.getMovieDetails(searchResult.id);
-					if (!tmdbMovie) continue;
-					movieId = tmdbMovie.id.toString();
-					movieTitle = tmdbMovie.title;
-					movieOverview = tmdbMovie.overview;
-				} else {
-					// It's a TMDbMovie
-					tmdbMovie = movie;
-					movieId = movie.id.toString();
-					movieTitle = movie.title;
-					movieOverview = movie.overview;
-				}
-
-				if (movieOverview) {
+				if (movie.overview) {
+					const movieId = movie.id.toString();
 					// Check if embedding already exists to avoid re-adding
-					const existing = await movieEmbeddingsCollection.get({
+					const existing = await collection.get({
 						ids: [movieId],
 					});
 					if (existing.ids.length === 0) {
 						const embedding =
-							await this.embeddingService.generateEmbedding(movieOverview);
+							await this.embeddingService.generateEmbedding(movie.overview);
 
 						await this.vectorService.addDocument(
 							"movie_embeddings",
 							movieId,
 							embedding,
-							movieOverview,
+							movie.overview,
 							{
-								title: movieTitle,
-								genre_ids: tmdbMovie?.genre_ids?.join(",") || "",
-								release_date: tmdbMovie?.release_date,
+								title: movie.title,
+								genre_ids: movie.genre_ids?.join(",") || "",
+								release_date: movie.release_date,
 							},
 						);
-						// console.log(`Added embedding for: ${movieTitle}`);
 					}
 				}
 			} catch (error) {
 				console.error(
-					`Error populating embedding for movie ${
-						"Name" in movie ? movie.Name : movie.title
-					}:`,
+					`Error populating embedding for new movie ${movie.title}:`,
 					error,
 				);
 			}
 		}
+		console.log("Finished populating new movie embeddings.");
 	}
 
 	async getRandomRecommendationWithDetails(
