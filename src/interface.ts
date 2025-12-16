@@ -29,27 +29,27 @@ export interface TMDbCredits {
 }
 
 export interface DiaryEntry {
-	Date: string;
+	LoggedDate: Date; // Date the entry was logged
 	Name: string;
-	Year: string;
-	"Letterboxd URI": string;
-	Rating: string;
-	Rewatch: "Yes" | "";
+	Year: number;
+	LetterboxdURI: string;
+	Rating: number;
+	Rewatch: boolean;
 	Tags: string;
-	"Watched Date": string;
+	WatchedDate: Date; // Date the movie was watched
 }
 
 export interface WatchlistEntry {
-	Date: string;
+	Date: Date;
 	Name: string;
-	Year: string;
-	"Letterboxd URI": string;
+	Year: number;
+	LetterboxdURI: string;
 }
 
 export interface RatingEntry {
-	Date: string;
+	Date: Date;
 	Name: string;
-	Year: string;
-	"Letterboxd URI": string;
+	Year: number;
+	LetterboxdURI: string;
 	Rating: number;
 }

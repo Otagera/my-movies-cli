@@ -119,8 +119,6 @@ export async function runCli(options?: {
 			process.exit(1);
 		}
 
-		const dataSyncService = new DataSyncService(cacheService);
-
 		const tmdbService = new TMDbService(tmdbApiKey, cacheService);
 		const recommendationService = new RecommendationService(tmdbService);
 		await recommendationService.init();
@@ -243,7 +241,35 @@ export async function runCli(options?: {
 						break;
 					}
 					case "Sync data with Letterboxd": {
-						await dataSyncService.syncData();
+						const { sourceType } = await prompt([
+							{
+								type: "list",
+								name: "sourceType",
+								message: "Where do you want to load data from?",
+								choices: ["Letterboxd profile (scraping)", "CSV files"],
+							},
+						]);
+
+						const useScraping = sourceType === "Letterboxd profile (scraping)";
+						const dataSyncService = new DataSyncService(
+							cacheService,
+							letterboxdService,
+							useScraping
+						);
+
+						if (useScraping) {
+							const { profileUrl } = await prompt([
+								{
+									type: "input",
+									name: "profileUrl",
+									message: "Enter your Letterboxd profile URL:",
+								},
+							]);
+							await dataSyncService.syncData(profileUrl);
+						} else {
+							await dataSyncService.syncData();
+						}
+
 						// Reload data from cache
 						diaryData = await cacheService.getDiaryEntries();
 						watchlistData = await cacheService.getWatchlistEntries();
@@ -352,9 +378,7 @@ export async function runCli(options?: {
 							},
 						]);
 						const moviesInYear = diaryData.filter(
-							(entry) =>
-								new Date(entry["Watched Date"]).getFullYear() ===
-								parseInt(year),
+							(entry) => entry.WatchedDate.getFullYear() === parseInt(year),
 						);
 						if (moviesInYear.length > 0) {
 							console.log("Movies watched in " + year + ":");
