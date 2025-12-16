@@ -1,12 +1,12 @@
-import inquirer from "inquirer";
-import dotenv from "dotenv";
 import cliSpinners from "cli-spinners";
-import { TMDbService } from "./services/tmdb.service";
-import { RecommendationService } from "./services/recommendation.service";
+import dotenv from "dotenv";
+import inquirer from "inquirer";
 import { CacheService } from "./services/cache.service";
-import { LetterboxdService } from "./services/letterboxd.service";
-import { WatchlistService } from "./services/watchlist.service";
 import { DataSyncService } from "./services/data-sync.service";
+import { LetterboxdService } from "./services/letterboxd.service";
+import { RecommendationService } from "./services/recommendation.service";
+import { TMDbService } from "./services/tmdb.service";
+import { WatchlistService } from "./services/watchlist.service";
 
 // Helper function to create and manage a spinner
 function createSpinner(text: string, output: NodeJS.WritableStream) {
@@ -63,8 +63,11 @@ export async function runCli(options?: {
 	const tmdbApiKey = process.env.TMDB_API_KEY;
 	const countryCode = process.env.STREAMING_COUNTRY_CODE;
 
-	  let originalConsoleLog: ((...args: unknown[]) => void) | undefined = undefined;
-	  let originalConsoleError: ((...args: unknown[]) => void) | undefined = undefined;	let originalProcessStdoutWrite:
+	let originalConsoleLog: ((...args: unknown[]) => void) | undefined =
+		undefined;
+	let originalConsoleError: ((...args: unknown[]) => void) | undefined =
+		undefined;
+	let originalProcessStdoutWrite:
 		| ((
 				chunk: string | Uint8Array,
 				cb?: (err?: Error | null | undefined) => void,
@@ -79,6 +82,7 @@ export async function runCli(options?: {
 		originalProcessStdoutWrite = process.stdout.write;
 		originalStreamWrite = options.output.write.bind(options.output);
 
+		// biome-ignore lint/suspicious/noExplicitAny: any
 		options.output.write = (chunk: any, encodingOrCb?: any, cb?: any) => {
 			let newChunk = chunk;
 			if (typeof chunk === "string") {
@@ -87,12 +91,17 @@ export async function runCli(options?: {
 			return originalStreamWrite!(newChunk, encodingOrCb, cb);
 		};
 
+		// biome-ignore lint/suspicious/noExplicitAny: any
 		console.log = (...args: any[]) => {
 			options.output.write(args.join(" ") + "\n");
 		};
+
+		// biome-ignore lint/suspicious/noExplicitAny: any
 		console.error = (...args: any[]) => {
 			options.output.write(args.join(" ") + "\n");
 		};
+
+		// biome-ignore lint/suspicious/noExplicitAny: any
 		(process.stdout.write as any) = (
 			chunk: string | Uint8Array,
 			cb?: (err?: Error | null | undefined) => void,
@@ -123,11 +132,15 @@ export async function runCli(options?: {
 			countryCode,
 		);
 
-		    const prompt = inquirer.createPromptModule({
-		      input: (options?.input as NodeJS.ReadStream) || (process.stdin as NodeJS.ReadStream),
-		      output: (options?.output as NodeJS.WriteStream) || (process.stdout as NodeJS.WriteStream),
-		    });
-		// Log loaded data
+		const prompt = inquirer.createPromptModule({
+			input:
+				(options?.input as NodeJS.ReadStream) ||
+				(process.stdin as NodeJS.ReadStream),
+			output:
+				(options?.output as NodeJS.WriteStream) ||
+				(process.stdout as NodeJS.WriteStream),
+		});
+
 		if (diaryData.length > 0)
 			console.log(`Successfully loaded ${diaryData.length} diary entries.`);
 		if (watchlistData.length > 0)
@@ -759,6 +772,7 @@ export async function runCli(options?: {
 		if (isSSH) {
 			console.log = originalConsoleLog!;
 			console.error = originalConsoleError!;
+			// biome-ignore lint/suspicious/noExplicitAny: any
 			(process.stdout.write as any) = originalProcessStdoutWrite!;
 			options.output.write = originalStreamWrite!;
 		}

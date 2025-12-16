@@ -1,38 +1,16 @@
-import { EmbeddingService } from "./embedding.service";
-import { VectorService } from "./vector.service";
 import { Collection } from "chromadb";
+import {
+	DiaryEntry,
+	RatingEntry,
+	ScoredMovieCandidate,
+	TMDbCredits,
+	TMDbMovie,
+	TasteProfile,
+	WatchlistEntry,
+} from "../interface";
+import { EmbeddingService } from "./embedding.service";
 import { TMDbService } from "./tmdb.service";
-import { DiaryEntry, WatchlistEntry, RatingEntry } from "../data/loader";
-
-interface TasteProfile {
-	genres: Map<string, number>;
-	actors: Map<string, number>;
-	directors: Map<string, number>;
-	writers: Map<string, number>;
-	keywords: Map<string, number>;
-}
-
-interface ScoredMovieCandidate {
-	id: number;
-	title: string;
-	genre_ids: number[];
-	score: number;
-	// Add other properties from TMDb movie object if needed for display or further processing
-}
-
-interface TMDbMovie {
-	id: number;
-	title: string;
-	overview: string;
-	release_date: string;
-	genre_ids: number[];
-	genres: { id: number; name: string }[];
-}
-
-interface TMDbCredits {
-	cast: { name: string }[];
-	crew: { name: string; job: string }[];
-}
+import { VectorService } from "./vector.service";
 
 export class RecommendationService {
 	private tmdbService: TMDbService;
@@ -69,38 +47,9 @@ export class RecommendationService {
 		// Generate a "taste profile" embedding by averaging embeddings of highlyRatedMovies
 		const highlyRatedMovieEmbeddings: number[][] = [];
 		for (const movie of highlyRatedMovies) {
-			const searchResult = await this.tmdbService.searchMovie(movie.Name);
-			if (searchResult) {
-				// Try to fetch embedding from ChromaDB
-				const result = await this.vectorService.getDocument(
-					"movie_embeddings",
-					{ id: searchResult.id.toString() }, // Filter by ID
-				);
-				if (result.embeddings && result.embeddings.length > 0) {
-					highlyRatedMovieEmbeddings.push(result.embeddings[0][0]); // Chroma returns [[embedding]]
-				} else {
-					// If not found in ChromaDB, generate and add it
-					const movieDetails = await this.tmdbService.getMovieDetails(
-						searchResult.id,
-					);
-					if (movieDetails && movieDetails.overview && this.embeddingService) {
-						const embedding = await this.embeddingService.generateEmbedding(
-							movieDetails.overview,
-						);
-						await this.vectorService.addDocument(
-							"movie_embeddings",
-							searchResult.id.toString(),
-							embedding,
-							movieDetails.overview,
-							{
-								title: movieDetails.title,
-								genre_ids: movieDetails.genre_ids?.join(",") || "",
-								release_date: movieDetails.release_date,
-							},
-						);
-						highlyRatedMovieEmbeddings.push(embedding);
-					}
-				}
+			const embedding = await this.ensureMovieEmbedding(movie);
+			if (embedding) {
+				highlyRatedMovieEmbeddings.push(embedding);
 			}
 		}
 
@@ -137,8 +86,8 @@ export class RecommendationService {
 			for (let i = 0; i < chromaResults.ids[0].length; i++) {
 				const id = chromaResults.ids[0][i];
 				const distance = chromaResults.distances[0][i];
-				const metadata = chromaResults.metadatas[0][i];
-				const document = chromaResults.documents[0][i];
+				const _metadata = chromaResults.metadatas[0][i];
+				const _document = chromaResults.documents[0][i];
 
 				// Ensure movie details are available for full scoring
 				const tmdbMovieId = parseInt(id, 10);
@@ -443,7 +392,7 @@ export class RecommendationService {
 	}
 
 	private async ensureMovieEmbeddingsPopulated(
-		movies: RatingEntry[] | TMDbMovie[],
+		movies: (RatingEntry | TMDbMovie)[],
 	): Promise<void> {
 		if (!this.embeddingService) {
 			console.warn(
@@ -457,11 +406,67 @@ export class RecommendationService {
 
 		// Populate embeddings for highly-rated movies
 		for (const movie of movies) {
-			// ... (existing logic for highly-rated movies)
+			try {
+				await this.ensureMovieEmbedding(movie);
+			} catch (error) {
+				const movieName = "Name" in movie ? movie.Name : movie.title;
+				console.error(
+					`Error ensuring embedding for movie ${movieName}:`,
+					error,
+				);
+			}
 		}
 
 		// Also populate embeddings from a dynamic source to broaden the recommendation pool
 		await this.populateMoviePool(movieEmbeddingsCollection);
+	}
+
+	private async ensureMovieEmbedding(
+		movie: RatingEntry | TMDbMovie,
+	): Promise<number[] | null> {
+		if (!this.embeddingService) {
+			throw new Error("Embedding service not initialized.");
+		}
+
+		const movieName = "Name" in movie ? movie.Name : movie.title;
+		const searchResult = "id" in movie ? movie : await this.tmdbService.searchMovie(movieName);
+
+		if (!searchResult) {
+			return null;
+		}
+
+		const movieId = searchResult.id.toString();
+
+		// Try to fetch embedding from ChromaDB
+		const result = await this.vectorService.getDocument("movie_embeddings", {
+			id: movieId,
+		});
+
+		if (result.embeddings && result.embeddings.length > 0) {
+			return result.embeddings[0][0]; // Chroma returns [[embedding]]
+		}
+
+		// If not found in ChromaDB, generate and add it
+		const movieDetails = await this.tmdbService.getMovieDetails(searchResult.id);
+		if (movieDetails && movieDetails.overview) {
+			const embedding = await this.embeddingService.generateEmbedding(
+				movieDetails.overview,
+			);
+			await this.vectorService.addDocument(
+				"movie_embeddings",
+				movieId,
+				embedding,
+				movieDetails.overview,
+				{
+					title: movieDetails.title,
+					genre_ids: movieDetails.genre_ids?.join(",") || "",
+					release_date: movieDetails.release_date,
+				},
+			);
+			return embedding;
+		}
+
+		return null;
 	}
 
 	private async populateMoviePool(
@@ -495,29 +500,7 @@ export class RecommendationService {
 
 		for (const movie of newMovies) {
 			try {
-				if (movie.overview) {
-					const movieId = movie.id.toString();
-					// Check if embedding already exists to avoid re-adding
-					const existing = await collection.get({
-						ids: [movieId],
-					});
-					if (existing.ids.length === 0) {
-						const embedding =
-							await this.embeddingService.generateEmbedding(movie.overview);
-
-						await this.vectorService.addDocument(
-							"movie_embeddings",
-							movieId,
-							embedding,
-							movie.overview,
-							{
-								title: movie.title,
-								genre_ids: movie.genre_ids?.join(",") || "",
-								release_date: movie.release_date,
-							},
-						);
-					}
-				}
+				await this.ensureMovieEmbedding(movie);
 			} catch (error) {
 				console.error(
 					`Error populating embedding for new movie ${movie.title}:`,

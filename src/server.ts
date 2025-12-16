@@ -1,5 +1,5 @@
-import { Server } from "ssh2";
 import fs from "fs";
+import { Server } from "ssh2";
 import { runCli } from "./cli";
 
 const sshServer = new Server(
@@ -22,10 +22,14 @@ const sshServer = new Server(
 				client.on("session", (accept, reject) => {
 					const session = accept();
 					session.once("pty", (accept, reject, info) => {
+						// biome-ignore lint/suspicious/noExplicitAny: any
 						(process.stdout as any).columns = info.cols;
+						// biome-ignore lint/suspicious/noExplicitAny: any
 						(process.stdout as any).rows = info.rows;
 						session.on("window-change", (accept, reject, info) => {
+							// biome-ignore lint/suspicious/noExplicitAny: any
 							(process.stdout as any).columns = info.cols;
+							// biome-ignore lint/suspicious/noExplicitAny: any
 							(process.stdout as any).rows = info.rows;
 							accept && accept();
 						});

@@ -1,5 +1,5 @@
-import puppeteer from "puppeteer";
 import * as cheerio from "cheerio";
+import puppeteer from "puppeteer";
 import { CacheService } from "./cache.service";
 
 export class LetterboxdService {

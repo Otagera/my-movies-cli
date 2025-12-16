@@ -1,9 +1,8 @@
-import { pipeline, env, FeatureExtractionPipeline } from "@xenova/transformers";
+import { env, FeatureExtractionPipeline, pipeline } from "@xenova/transformers";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-// Set the path to the local models
 env.localModelPath = "./.cache/transformers";
 
 if (process.env.USE_LOCAL_HF_MODELS === "true") {
@@ -15,9 +14,7 @@ let extractor: FeatureExtractionPipeline | null = null; // Variable to hold the 
 export class EmbeddingService {
 	private static instance: EmbeddingService;
 
-	private constructor() {
-		// Private constructor to enforce singleton pattern
-	}
+	private constructor() {}
 
 	public static async getInstance(): Promise<EmbeddingService> {
 		if (!EmbeddingService.instance) {
@@ -30,7 +27,6 @@ export class EmbeddingService {
 	private async loadModel() {
 		if (!extractor) {
 			console.log("Loading embedding model (this may take a moment)...");
-			// Use the 'feature-extraction' pipeline with the specified model
 			extractor = await pipeline(
 				"feature-extraction",
 				"Xenova/all-MiniLM-L6-v2",
@@ -49,12 +45,11 @@ export class EmbeddingService {
 		if (!extractor) {
 			throw new Error("Embedding model not loaded. Call getInstance() first.");
 		}
-		// Generate embeddings. The output is a tensor, we need to convert it to a plain array.
+
 		const output = await extractor(text, {
 			pooling: "mean",
 			normalize: true,
 		});
-		// Convert the tensor to a flat array of numbers
 		return Array.from(output.data);
 	}
 }

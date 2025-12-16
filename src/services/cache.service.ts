@@ -1,6 +1,6 @@
 import knex from "knex";
 import path from "path";
-import { DiaryEntry, RatingEntry, WatchlistEntry } from "../data/loader";
+import { DiaryEntry, RatingEntry, WatchlistEntry } from "../interface";
 
 export interface WatchlistAvailability {
 	[movieName: string]: {
@@ -50,7 +50,7 @@ export class CacheService {
 				table.string("title");
 				table.text("overview");
 				table.string("release_date");
-				table.json("genre_ids"); // Store as JSON string
+				table.json("genre_ids");
 				table.timestamp("cached_at").defaultTo(this.db.fn.now());
 			});
 		}
@@ -59,8 +59,8 @@ export class CacheService {
 		if (!hasMovieCreditsTable) {
 			await this.db.schema.createTable("movie_credits", (table) => {
 				table.integer("movie_id").primary();
-				table.json("cast"); // Store as JSON string
-				table.json("crew"); // Store as JSON string
+				table.json("cast");
+				table.json("crew");
 				table.timestamp("cached_at").defaultTo(this.db.fn.now());
 			});
 		}
@@ -71,7 +71,7 @@ export class CacheService {
 		if (!hasDiscoverMoviesCacheTable) {
 			await this.db.schema.createTable("discover_movies_cache", (table) => {
 				table.string("query_params").primary(); // e.g., 'sort_by=popularity.desc&page=1'
-				table.json("results"); // Store array of movie IDs or simplified movie objects
+				table.json("results");
 				table.timestamp("cached_at").defaultTo(this.db.fn.now());
 			});
 		}

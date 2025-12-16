@@ -114,6 +114,7 @@ export class TMDbService {
 
 	async getPopularMovies(page = 1) {
 		const cacheKey = `popular-movies-page-${page}`;
+		// biome-ignore lint/suspicious/noExplicitAny: any
 		const cachedMovies = await this.cacheService.get<any[]>(cacheKey, 86400); // 1 day TTL
 		if (cachedMovies) {
 			return cachedMovies;
@@ -132,6 +133,7 @@ export class TMDbService {
 
 	async getTopRatedMovies(page = 1) {
 		const cacheKey = `top-rated-movies-page-${page}`;
+		// biome-ignore lint/suspicious/noExplicitAny: any
 		const cachedMovies = await this.cacheService.get<any[]>(cacheKey, 86400); // 1 day TTL
 		if (cachedMovies) {
 			return cachedMovies;
@@ -150,20 +152,18 @@ export class TMDbService {
 
 	async getNowPlayingMovies(page = 1) {
 		const cacheKey = `now-playing-movies-page-${page}`;
+		// biome-ignore lint/suspicious/noExplicitAny: any
 		const cachedMovies = await this.cacheService.get<any[]>(cacheKey, 86400); // 1 day TTL
 		if (cachedMovies) {
 			return cachedMovies;
 		}
 
-		const response = await axios.get(
-			`${TMDB_API_BASE_URL}/movie/now_playing`,
-			{
-				params: {
-					api_key: this.apiKey,
-					page,
-				},
+		const response = await axios.get(`${TMDB_API_BASE_URL}/movie/now_playing`, {
+			params: {
+				api_key: this.apiKey,
+				page,
 			},
-		);
+		});
 		const movies = response.data.results;
 		await this.cacheService.set(cacheKey, movies);
 		return movies;

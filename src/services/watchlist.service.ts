@@ -1,5 +1,5 @@
-import { TMDbService } from "./tmdb.service";
 import { CacheService, WatchlistAvailability } from "./cache.service";
+import { TMDbService } from "./tmdb.service";
 
 interface Provider {
 	provider_name: string;
@@ -10,6 +10,7 @@ export class WatchlistService {
 	private cacheService: CacheService;
 	private subscribedServices: string[];
 	private countryCode: string;
+
 	constructor(
 		tmdbService: TMDbService,
 		cacheService: CacheService,
@@ -30,7 +31,7 @@ export class WatchlistService {
 		const changes: string[] = [];
 
 		for (const entry of watchlist) {
-			const movieName = (entry as any).Name;
+			const movieName = entry.Name;
 			const movie = await this.tmdbService.searchMovie(movieName);
 			if (movie) {
 				const providers = await this.tmdbService.getWatchProviders(movie.id);

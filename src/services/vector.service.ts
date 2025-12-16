@@ -47,6 +47,7 @@ export class VectorService {
 		id: string,
 		embedding: number[],
 		document: string,
+		// biome-ignore lint/suspicious/noExplicitAny: any
 		metadata?: Record<string, string | number | boolean | any>,
 	): Promise<void> {
 		const collection = await this.getOrCreateCollection(collectionName);
@@ -56,13 +57,11 @@ export class VectorService {
 			documents: [document],
 			metadatas: [metadata || {}],
 		});
-		// console.log(`Document '${id}' added to collection '${collectionName}'.`);
+		console.log(`Document '${id}' added to collection '${collectionName}'.`);
 	}
 
-	public async getDocument(
-		collectionName: string,
-		where: Where,
-	): Promise<any> {
+	// biome-ignore lint/suspicious/noExplicitAny: any
+	public async getDocument(collectionName: string, where: Where): Promise<any> {
 		const collection = await this.getOrCreateCollection(collectionName);
 		const results = await collection.get({
 			where: where,
@@ -89,22 +88,21 @@ export class VectorService {
 		queryEmbeddings: number[],
 		nResults: number,
 		where?: Where,
-		// whereDocument?: Record<string, any>, // Removed to fix TS error, re-evaluate if needed with correct type
+		// biome-ignore lint/suspicious/noExplicitAny: any
 	): Promise<any> {
 		const collection = await this.getOrCreateCollection(collectionName);
 		console.log(
 			`Querying collection '${collectionName}' for ${nResults} results...`,
 		);
 		const results = await collection.query({
-			queryEmbeddings: [queryEmbeddings], // Fix 1: Wrap in array
+			queryEmbeddings: [queryEmbeddings],
 			nResults: nResults,
 			where: where,
-			// whereDocument: whereDocument, // Removed to fix TS error
 			include: [
 				IncludeEnum.documents,
 				IncludeEnum.metadatas,
 				IncludeEnum.distances,
-			], // Fix 3: Correct casing
+			],
 		});
 		return results;
 	}

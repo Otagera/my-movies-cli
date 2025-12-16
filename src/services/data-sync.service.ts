@@ -1,10 +1,6 @@
+import { loadCsvData } from "../data/loader";
+import { DiaryEntry, RatingEntry, WatchlistEntry } from "../interface";
 import { CacheService } from "./cache.service";
-import {
-	loadCsvData,
-	DiaryEntry,
-	WatchlistEntry,
-	RatingEntry,
-} from "../data/loader";
 
 interface SavedList {
 	Date: string;
