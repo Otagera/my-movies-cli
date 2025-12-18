@@ -1,6 +1,6 @@
 import cliSpinners from "cli-spinners";
-import dotenv from "dotenv";
 import inquirer from "inquirer";
+import { getConfig } from "./app.config";
 import { CacheService } from "./services/cache.service";
 import { DataSyncService } from "./services/data-sync.service";
 import { LetterboxdService } from "./services/letterboxd.service";
@@ -18,7 +18,7 @@ function createSpinner(text: string, output: NodeJS.WritableStream) {
 		start: () => {
 			interval = setInterval(() => {
 				output.write(
-					`\r${spinner.frames[(i = ++i % spinner.frames.length)]} ${text}`,
+					`\r${spinner.frames[(i = ++i % spinner.frames.length)]} ${text}`
 				);
 			}, spinner.interval);
 			return self;
@@ -46,7 +46,7 @@ export async function runCli(options?: {
 	input: NodeJS.ReadableStream;
 	output: NodeJS.WritableStream;
 }) {
-	dotenv.config();
+	const config = getConfig();
 	const isSSH = !!options;
 
 	const cacheService = new CacheService();
@@ -60,8 +60,8 @@ export async function runCli(options?: {
 
 	let subscribedServices =
 		(await cacheService.get<string[]>("streaming_services")) || [];
-	const tmdbApiKey = process.env.TMDB_API_KEY;
-	const countryCode = process.env.STREAMING_COUNTRY_CODE;
+	const tmdbApiKey = config.tmdb.apiKey;
+	const countryCode = config.streaming.countryCode;
 
 	let originalConsoleLog: ((...args: unknown[]) => void) | undefined =
 		undefined;
@@ -70,7 +70,7 @@ export async function runCli(options?: {
 	let originalProcessStdoutWrite:
 		| ((
 				chunk: string | Uint8Array,
-				cb?: (err?: Error | null | undefined) => void,
+				cb?: (err?: Error | null | undefined) => void
 		  ) => boolean)
 		| undefined = undefined;
 	let originalStreamWrite: NodeJS.WritableStream["write"] | undefined =
@@ -104,7 +104,7 @@ export async function runCli(options?: {
 		// biome-ignore lint/suspicious/noExplicitAny: any
 		(process.stdout.write as any) = (
 			chunk: string | Uint8Array,
-			cb?: (err?: Error | null | undefined) => void,
+			cb?: (err?: Error | null | undefined) => void
 		) => {
 			return options.output.write(chunk, cb);
 		};
@@ -113,7 +113,7 @@ export async function runCli(options?: {
 	try {
 		if (!tmdbApiKey || !countryCode) {
 			console.error(
-				"Please ensure TMDB_API_KEY and STREAMING_COUNTRY_CODE are set in your .env file.",
+				"Please ensure TMDB_API_KEY and STREAMING_COUNTRY_CODE are set in your .env file."
 			);
 			if (isSSH) return;
 			process.exit(1);
@@ -127,7 +127,7 @@ export async function runCli(options?: {
 			tmdbService,
 			cacheService,
 			subscribedServices,
-			countryCode,
+			countryCode
 		);
 
 		const prompt = inquirer.createPromptModule({
@@ -143,7 +143,7 @@ export async function runCli(options?: {
 			console.log(`Successfully loaded ${diaryData.length} diary entries.`);
 		if (watchlistData.length > 0)
 			console.log(
-				`Successfully loaded ${watchlistData.length} watchlist entries. `,
+				`Successfully loaded ${watchlistData.length} watchlist entries. `
 			);
 		if (ratingsData.length > 0)
 			console.log(`Successfully loaded ${ratingsData.length} ratings.`);
@@ -195,16 +195,17 @@ export async function runCli(options?: {
 							availableMovies.forEach((movie) => console.log(`- ${movie}`));
 						} else {
 							console.log(
-								"No available movies found on your watchlist. Run 'Check for watchlist availability changes' to update.",
+								"No available movies found on your watchlist. Run 'Check for watchlist availability changes' to update."
 							);
 						}
 						break;
 					}
 					case "Set streaming services": {
-						const availableProviders =
-							await tmdbService.getAvailableProviders(countryCode);
+						const availableProviders = await tmdbService.getAvailableProviders(
+							countryCode
+						);
 						const availableProviderNames = availableProviders.map(
-							(p: { provider_name: string }) => p.provider_name.toLowerCase(),
+							(p: { provider_name: string }) => p.provider_name.toLowerCase()
 						);
 
 						while (true) {
@@ -222,14 +223,14 @@ export async function runCli(options?: {
 								.map((s: string) => s.trim().toLowerCase());
 
 							const invalidServices = servicesArray.filter(
-								(s: string) => !availableProviderNames.includes(s),
+								(s: string) => !availableProviderNames.includes(s)
 							);
 
 							if (invalidServices.length > 0) {
 								console.error(
 									`Invalid services: ${invalidServices.join(
-										", ",
-									)}. Please try again. `,
+										", "
+									)}. Please try again. `
 								);
 							} else {
 								await cacheService.set("streaming_services", servicesArray);
@@ -302,7 +303,7 @@ export async function runCli(options?: {
 								subscribedServices[0] === ""
 							) {
 								console.error(
-									"Please add your STREAMING_SERVICES to the .env file to use this option.",
+									"Please add your STREAMING_SERVICES to the .env file to use this option."
 								);
 								break;
 							}
@@ -311,7 +312,7 @@ export async function runCli(options?: {
 								watchlistData,
 								highlyRatedMovies,
 								subscribedServices,
-								countryCode,
+								countryCode
 							);
 							recommendationMessage =
 								"Here are your top 5 personalized movie recommendations (available on your subscribed services):";
@@ -319,7 +320,7 @@ export async function runCli(options?: {
 							recommendations = await recommendationService.getRecommendations(
 								diaryData,
 								watchlistData,
-								highlyRatedMovies,
+								highlyRatedMovies
 							);
 							recommendationMessage =
 								"Here are your top 5 personalized movie recommendations (all):";
@@ -330,9 +331,9 @@ export async function runCli(options?: {
 							recommendations.forEach(
 								(movie: { title: string; score: number }, index: number) => {
 									console.log(
-										`${index + 1}. ${movie.title} (Score: ${movie.score})`,
+										`${index + 1}. ${movie.title} (Score: ${movie.score})`
 									);
-								},
+								}
 							);
 						} else {
 							console.log("No new movie recommendations found at this time.");
@@ -345,15 +346,19 @@ export async function runCli(options?: {
 							await recommendationService.getRandomRecommendationWithDetails(
 								highlyRatedMovies,
 								diaryData,
-								watchlistData,
+								watchlistData
 							);
 						if (randomRecommendation.movie) {
 							console.log(
-								`\nHow about watching: ${randomRecommendation.movie.title} (${new Date(randomRecommendation.movie.release_date).getFullYear()})?`,
+								`\nHow about watching: ${
+									randomRecommendation.movie.title
+								} (${new Date(
+									randomRecommendation.movie.release_date
+								).getFullYear()})?`
 							);
 							console.log("Reasons you might like this:");
 							randomRecommendation.reasons.forEach((reason) =>
-								console.log(`- ${reason}`),
+								console.log(`- ${reason}`)
 							);
 						} else {
 							console.log("Could not suggest a random movie at this time.");
@@ -378,7 +383,7 @@ export async function runCli(options?: {
 							},
 						]);
 						const moviesInYear = diaryData.filter(
-							(entry) => entry.WatchedDate.getFullYear() === parseInt(year),
+							(entry) => entry.WatchedDate.getFullYear() === parseInt(year)
 						);
 						if (moviesInYear.length > 0) {
 							console.log("Movies watched in " + year + ":");
@@ -391,7 +396,7 @@ export async function runCli(options?: {
 
 					case "How many movies are on my watchlist?": {
 						console.log(
-							"You have " + watchlistData.length + " movies on your watchlist.",
+							"You have " + watchlistData.length + " movies on your watchlist."
 						);
 						break;
 					}
@@ -420,7 +425,7 @@ export async function runCli(options?: {
 									movie.title +
 									" (" +
 									new Date(movie.release_date).getFullYear() +
-									")",
+									")"
 							);
 							const providers = await tmdbService.getWatchProviders(movie.id);
 							const countryProviders = providers[countryCode.toUpperCase()];
@@ -434,15 +439,15 @@ export async function runCli(options?: {
 								countryProviders.flatrate.forEach(
 									(provider: { provider_name: string }) => {
 										const isSubscribed = subscribedServices.includes(
-											provider.provider_name.toLowerCase(),
+											provider.provider_name.toLowerCase()
 										);
 										console.log(
 											"- " +
 												provider.provider_name +
 												" " +
-												(isSubscribed ? "(Subscribed)" : ""),
+												(isSubscribed ? "(Subscribed)" : "")
 										);
-									},
+									}
 								);
 								console.log("\nWatch it here: " + countryProviders.link);
 							} else {
@@ -464,13 +469,13 @@ export async function runCli(options?: {
 							subscribedServices[0] === ""
 						) {
 							console.error(
-								"Please add your STREAMING_SERVICES to the .env file.",
+								"Please add your STREAMING_SERVICES to the .env file."
 							);
 							break;
 						}
 						let suggestionFound = false;
 						const shuffledWatchlist = [...watchlistData].sort(
-							() => 0.5 - Math.random(),
+							() => 0.5 - Math.random()
 						);
 
 						for (const movie of shuffledWatchlist) {
@@ -479,7 +484,7 @@ export async function runCli(options?: {
 								if (!tmdbMovie) continue;
 
 								const providers = await tmdbService.getWatchProviders(
-									tmdbMovie.id,
+									tmdbMovie.id
 								);
 								const countryProviders = providers[countryCode.toUpperCase()];
 
@@ -492,8 +497,8 @@ export async function runCli(options?: {
 										countryProviders.flatrate.filter(
 											(provider: { provider_name: string }) =>
 												subscribedServices.includes(
-													provider.provider_name.toLowerCase(),
-												),
+													provider.provider_name.toLowerCase()
+												)
 										);
 
 									if (availableOnSubscribed.length > 0) {
@@ -501,7 +506,7 @@ export async function runCli(options?: {
 										console.log("You can stream it on:");
 										availableOnSubscribed.forEach(
 											(provider: { provider_name: string }) =>
-												console.log(`- ${provider.provider_name}`),
+												console.log(`- ${provider.provider_name}`)
 										);
 										console.log("\nWatch it here: " + countryProviders.link);
 										suggestionFound = true;
@@ -514,7 +519,7 @@ export async function runCli(options?: {
 						}
 						if (!suggestionFound) {
 							console.log(
-								"Could not find any movie from your watchlist available on your subscribed services.",
+								"Could not find any movie from your watchlist available on your subscribed services."
 							);
 						}
 						break;
@@ -522,28 +527,29 @@ export async function runCli(options?: {
 
 					case "List available streaming services": {
 						try {
-							const providers =
-								await tmdbService.getAvailableProviders(countryCode);
+							const providers = await tmdbService.getAvailableProviders(
+								countryCode
+							);
 							if (providers && providers.length > 0) {
 								console.log(
 									"Available streaming services in " +
 										countryCode.toUpperCase() +
-										":",
+										":"
 								);
 								const providerNames = providers
 									.map(
 										(provider: { provider_name: string }) =>
-											provider.provider_name,
+											provider.provider_name
 									)
 									.sort();
 								console.log(providerNames.join("\n"));
 								console.log(
-									"\nCopy the exact names of the services you subscribe to and add them to the STREAMING_SERVICES variable in your .env file, separated by commas.",
+									"\nCopy the exact names of the services you subscribe to and add them to the STREAMING_SERVICES variable in your .env file, separated by commas."
 								);
 							} else {
 								console.log(
 									"Could not find any streaming services for country code: " +
-										countryCode.toUpperCase(),
+										countryCode.toUpperCase()
 								);
 							}
 						} catch (e) {
@@ -588,12 +594,12 @@ export async function runCli(options?: {
 
 						const listSpinner = createSpinner(
 							"Fetching list from Letterboxd...",
-							options?.output || process.stdout,
+							options?.output || process.stdout
 						).start();
 						try {
 							const movies = await letterboxdService.getMoviesFromList(listUrl);
 							listSpinner.succeed(
-								"Found " + movies.length + " movies in the list.",
+								"Found " + movies.length + " movies in the list."
 							);
 
 							if (movies.length > 0) {
@@ -609,7 +615,7 @@ export async function runCli(options?: {
 								if (findWatchProviders) {
 									const providersSpinner = createSpinner(
 										"Finding watch providers...",
-										options?.output || process.stdout,
+										options?.output || process.stdout
 									).start();
 									const subscribedMovies: string[] = [];
 									const otherAvailableMovies: string[] = [];
@@ -621,12 +627,12 @@ export async function runCli(options?: {
 											const movie = await tmdbService.searchMovie(movieTitle);
 											if (!movie) {
 												unavailableMovies.push(
-													"- " + movieTitle + ": Not found on TMDb.",
+													"- " + movieTitle + ": Not found on TMDb."
 												);
 												continue;
 											}
 											const providers = await tmdbService.getWatchProviders(
-												movie.id,
+												movie.id
 											);
 											const countryProviders =
 												providers[countryCode.toUpperCase()];
@@ -639,11 +645,11 @@ export async function runCli(options?: {
 													countryProviders.flatrate
 														.filter((p: { provider_name: string }) =>
 															subscribedServices.includes(
-																p.provider_name.toLowerCase(),
-															),
+																p.provider_name.toLowerCase()
+															)
 														)
 														.map(
-															(p: { provider_name: string }) => p.provider_name,
+															(p: { provider_name: string }) => p.provider_name
 														)
 														.join(", ");
 
@@ -654,12 +660,12 @@ export async function runCli(options?: {
 															": Available on your services (" +
 															subscribedProviderNames +
 															"). Watch here: " +
-															countryProviders.link,
+															countryProviders.link
 													);
 												} else {
 													const otherProviderNames = countryProviders.flatrate
 														.map(
-															(p: { provider_name: string }) => p.provider_name,
+															(p: { provider_name: string }) => p.provider_name
 														)
 														.join(", ");
 													otherAvailableMovies.push(
@@ -668,14 +674,14 @@ export async function runCli(options?: {
 															": Available on " +
 															otherProviderNames +
 															". Watch here: " +
-															countryProviders.link,
+															countryProviders.link
 													);
 												}
 											} else {
 												unavailableMovies.push(
 													"- " +
 														movieTitle +
-														": Not available for streaming in your country.",
+														": Not available for streaming in your country."
 												);
 											}
 										} catch {
@@ -683,12 +689,12 @@ export async function runCli(options?: {
 												providersSpinner.fail(
 													"- " +
 														movieTitle +
-														": Error finding watch providers. Further errors will be suppressed.",
+														": Error finding watch providers. Further errors will be suppressed."
 												);
 											}
 											errorCount++;
 											unavailableMovies.push(
-												"- " + movieTitle + ": Error finding watch providers.",
+												"- " + movieTitle + ": Error finding watch providers."
 											);
 										}
 										await new Promise((resolve) => setTimeout(resolve, 250)); // 250ms delay
@@ -700,7 +706,7 @@ export async function runCli(options?: {
 										subscribedMovies.forEach((m) => console.log(m));
 									} else {
 										console.log(
-											"None of the movies on this list are available on your subscribed services.",
+											"None of the movies on this list are available on your subscribed services."
 										);
 									}
 
@@ -709,7 +715,7 @@ export async function runCli(options?: {
 										otherAvailableMovies.forEach((m) => console.log(m));
 									} else {
 										console.log(
-											"No other movies on this list are available for streaming.",
+											"No other movies on this list are available for streaming."
 										);
 									}
 
@@ -733,7 +739,7 @@ export async function runCli(options?: {
 					case "Check for watchlist availability changes": {
 						const watchlistSpinner = createSpinner(
 							"Checking for watchlist availability changes...",
-							options?.output || process.stdout,
+							options?.output || process.stdout
 						).start();
 						try {
 							const changes =
@@ -741,33 +747,33 @@ export async function runCli(options?: {
 							if (changes.length > 0) {
 								watchlistSpinner.succeed("Found availability changes:");
 								const newlyAvailable = changes.filter((c) =>
-									c.includes("is now available"),
+									c.includes("is now available")
 								);
 								const noLongerAvailable = changes.filter((c) =>
-									c.includes("is no longer available"),
+									c.includes("is no longer available")
 								);
 
 								if (newlyAvailable.length > 0) {
 									console.log("\n--- Newly Available ---");
 									newlyAvailable.forEach((change) =>
-										console.log("- " + change),
+										console.log("- " + change)
 									);
 								}
 
 								if (noLongerAvailable.length > 0) {
 									console.log("\n--- No Longer Available ---");
 									noLongerAvailable.forEach((change) =>
-										console.log("- " + change),
+										console.log("- " + change)
 									);
 								}
 							} else {
 								watchlistSpinner.succeed(
-									"No changes in watchlist availability.",
+									"No changes in watchlist availability."
 								);
 							}
 						} catch (e) {
 							watchlistSpinner.fail(
-								"Error checking for watchlist availability changes.",
+								"Error checking for watchlist availability changes."
 							);
 							console.error(e);
 						}

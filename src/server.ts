@@ -1,10 +1,12 @@
 import fs from "fs";
 import { Server } from "ssh2";
 import { runCli } from "./cli";
+import { getConfig } from "./app.config";
 
+const config = getConfig();
 const sshServer = new Server(
 	{
-		hostKeys: [fs.readFileSync("host.key")],
+		hostKeys: [fs.readFileSync(config.ssh.hostKeyPath)],
 	},
 	(client) => {
 		client
@@ -44,9 +46,9 @@ const sshServer = new Server(
 			.on("close", () => {
 				console.log("Client disconnected");
 			});
-	},
+	}
 );
 
-sshServer.listen(2222, "0.0.0.0", function () {
+sshServer.listen(config.ssh.port, "0.0.0.0", function () {
 	console.log("SSH Server is listening on port 2222");
 });

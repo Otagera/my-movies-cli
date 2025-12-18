@@ -1,6 +1,7 @@
 import knex from "knex";
 import path from "path";
 import { DiaryEntry, RatingEntry, WatchlistEntry } from "../interface";
+import { getConfig } from "../app.config";
 
 export interface WatchlistAvailability {
 	[movieName: string]: {
@@ -30,9 +31,10 @@ interface SavedList {
 
 export class CacheService {
 	private db: knex.Knex;
+	private config = getConfig();
 
 	constructor() {
-		const dbPath = path.resolve(__dirname, "../../cache.sqlite");
+		const dbPath = path.resolve(__dirname, `../../${this.config.cache.dbPath}`);
 		this.db = knex({
 			client: "sqlite3",
 			connection: {
@@ -66,7 +68,7 @@ export class CacheService {
 		}
 
 		const hasDiscoverMoviesCacheTable = await this.db.schema.hasTable(
-			"discover_movies_cache",
+			"discover_movies_cache"
 		);
 		if (!hasDiscoverMoviesCacheTable) {
 			await this.db.schema.createTable("discover_movies_cache", (table) => {
@@ -258,7 +260,7 @@ export class CacheService {
 
 	public async getPreviousAvailability(): Promise<WatchlistAvailability> {
 		const availability = await this.get<WatchlistAvailability>(
-			"watchlist-availability",
+			"watchlist-availability"
 		);
 		return availability || {};
 	}

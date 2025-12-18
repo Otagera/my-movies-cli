@@ -1,11 +1,11 @@
 import { env, FeatureExtractionPipeline, pipeline } from "@xenova/transformers";
-import dotenv from "dotenv";
+import { getConfig } from "../app.config";
 
-dotenv.config();
+const config = getConfig();
 
-env.localModelPath = "./.cache/transformers";
+env.localModelPath = config.huggingface.modelPath;
 
-if (process.env.USE_LOCAL_HF_MODELS === "true") {
+if (config.huggingface.useLocalModels) {
 	env.allowRemoteModels = false;
 }
 
@@ -29,8 +29,8 @@ export class EmbeddingService {
 			console.log("Loading embedding model (this may take a moment)...");
 			extractor = await pipeline(
 				"feature-extraction",
-				"Xenova/all-MiniLM-L6-v2",
-				{ quantized: false },
+				config.huggingface.modelName,
+				{ quantized: false }
 			);
 			console.log("Embedding model loaded.");
 		}

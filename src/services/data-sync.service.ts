@@ -1,4 +1,4 @@
-import { loadCsvData } from "./util";
+import { loadCsvData } from "../util";
 import { DiaryEntry, RatingEntry, WatchlistEntry } from "../interface";
 import { CacheService } from "./cache.service";
 import { LetterboxdService } from "./letterboxd.service";

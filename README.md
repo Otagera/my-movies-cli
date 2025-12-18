@@ -34,23 +34,18 @@ This is a command-line interface (CLI) tool for interacting with your Letterboxd
     npm install
     ```
 
-3.  **Set up environment variables:**
-    Create a `.env` file in the root directory based on `.env.example` and fill in your details:
-    ```
-    # Letterboxd Credentials (for data sync)
-    LETTERBOXD_USERNAME=your_username
-    LETTERBOXD_PASSWORD=your_password
+### Configuration
 
-    # TMDb API Key
-    TMDB_API_KEY=your_tmdb_api_key_here
+Configuration is now managed through `src/app.config.ts`. This file allows for more flexible and typed configuration.
 
-    # Your 2-letter country code for streaming availability
-    STREAMING_COUNTRY_CODE="US"
+You can modify this file directly to change application settings. For sensitive information like API keys and passwords, you should use a `.env` file in the root of the project. The application will automatically load these variables and make them available in the config.
 
-    # For offline/restricted network setup (see below)
-    USE_LOCAL_HF_MODELS=false
-    ```
-    *Note: Streaming services are now configured interactively within the CLI.*
+The following variables are loaded from the `.env` file:
+- `LETTERBOXD_USERNAME`
+- `LETTERBOXD_PASSWORD`
+- `TMDB_API_KEY`
+
+All other settings, such as `STREAMING_COUNTRY_CODE`, are now configured in `src/app.config.ts`.
 
 4.  **Run the ChromaDB Server:**
     Open a **separate terminal window** and run the following command from the project root:
@@ -71,9 +66,16 @@ If you are on a network that blocks access to Hugging Face, the application will
     This will download all necessary files directly into the correct directory.
 
 2.  **Enable Local Model Loading:**
-    In your `.env` file, set `USE_LOCAL_HF_MODELS` to `true`:
-    ```
-    USE_LOCAL_HF_MODELS=true
+    In `src/app.config.ts`, set `huggingface.useLocalModels` to `true`:
+    ```typescript
+    // src/app.config.ts
+    // ...
+    huggingface: {
+      useLocalModels: true, // Set this to true
+      modelName: "Xenova/all-MiniLM-L6-v2",
+      modelPath: "./.cache/transformers",
+    },
+    // ...
     ```
     The application will now load the model from your local cache and will not attempt to connect to Hugging Face.
 
@@ -176,6 +178,7 @@ Finally, if you've chosen to see recommendations available on your streaming ser
 
 -   `src/index.ts`: Main application entry point, launches the CLI.
 -   `src/cli.ts`: Contains the core `inquirer` prompt loop and user interaction logic.
+-   `src/app.config.ts`: Manages application configuration, loading sensitive data from `.env` and providing typed settings.
 -   `src/services/data-sync.service.ts`: Handles syncing data directly from Letterboxd using Puppeteer.
 -   `src/services/embedding.service.ts`: Manages the loading of the sentence-transformer model from Hugging Face and generates embeddings for movie overviews.
 -   `src/services/vector.service.ts`: A service to interact with the ChromaDB vector store (adding and querying movie embeddings).
