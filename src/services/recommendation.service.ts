@@ -12,12 +12,15 @@ import { getConfig } from "../app.config";
 import { EmbeddingService } from "./embedding.service";
 import { TMDbService } from "./tmdb.service";
 import { VectorService } from "./vector.service";
+import { createLogger } from "../logger";
+import { EmbeddingError } from "../errors";
 
 export class RecommendationService {
 	private config = getConfig();
 	private tmdbService: TMDbService;
 	private embeddingService?: EmbeddingService;
 	private vectorService: VectorService;
+	private logger = createLogger("RecommendationService");
 
 	constructor(tmdbService: TMDbService) {
 		this.tmdbService = tmdbService;
@@ -356,21 +359,6 @@ export class RecommendationService {
 		};
 	}
 
-	// Helper methods to convert between genre names and IDs
-	private genreNameToId(name: string): number | undefined {
-		const genres = this.getGenreList();
-		const genre = genres.find(
-			(g) => g.name.toLowerCase() === name.toLowerCase()
-		);
-		return genre ? genre.id : undefined;
-	}
-
-	private genreIdToName(id: number): string | undefined {
-		const genres = this.getGenreList();
-		const genre = genres.find((g) => g.id === id);
-		return genre ? genre.name : undefined;
-	}
-
 	private getGenreList() {
 		// This list could be fetched from TMDb API, but for simplicity, it's hardcoded here.
 		return [
@@ -399,8 +387,13 @@ export class RecommendationService {
 	private async ensureMovieEmbeddingsPopulated(
 		movies: (RatingEntry | TMDbMovie)[]
 	): Promise<void> {
+		const errors: Array<{ movie: string; error: any }> = [];
+		let successCount = 0;
+
+		this.logger.info(`Processing embeddings for ${movies.length} movies`);
+
 		if (!this.embeddingService) {
-			console.warn(
+			this.logger.warn(
 				"EmbeddingService not initialized. Cannot populate movie embeddings."
 			);
 			return;
@@ -411,19 +404,60 @@ export class RecommendationService {
 
 		// Populate embeddings for highly-rated movies
 		for (const movie of movies) {
+			const movieName = "Name" in movie ? movie.Name : movie.title;
 			try {
 				await this.ensureMovieEmbedding(movie);
+				successCount++;
 			} catch (error) {
-				const movieName = "Name" in movie ? movie.Name : movie.title;
-				console.error(
-					`Error ensuring embedding for movie ${movieName}:`,
-					error
-				);
+				errors.push({
+					movie: movieName,
+					error:
+						error instanceof Error ? error.message : new Error(String(error)),
+				});
+				this.logger.warn(`Failed to embed movie ${movieName}`, error);
 			}
 		}
 
 		// Also populate embeddings from a dynamic source to broaden the recommendation pool
 		await this.populateMoviePool(movieEmbeddingsCollection);
+
+		this.logger.info("Embedding batch complete", {
+			total: movies.length,
+			successful: successCount,
+			failed: errors.length,
+			successRate: ((successCount / movies.length) * 100).toFixed(2) + "%",
+		});
+
+		if (errors.length > movies.length * 0.3) {
+			this.logger.error(
+				`High failure rate: ${errors.length}/${movies.length} movies failed`,
+				{
+					sampleErrors: errors.slice(0, 3).map((e) => e.movie),
+				}
+			);
+
+			throw new EmbeddingError(
+				`Failed to process ${errors.length} out of ${movies.length} movies. Aborting.`,
+				{
+					failureRate: errors.length / movies.length,
+					sampleFailures: errors.slice(0, 5).map((e) => ({
+						movie: e.movie,
+						error: e.error.message,
+					})),
+				}
+			);
+		}
+		if (errors.length > 0) {
+			this.logger.warn(
+				`Some movies failed to embed: ${errors.length}/${movies.length}`,
+				{
+					sampleFailures: errors.slice(0, 5).map((e) => ({
+						movie: e.movie,
+						error: e.error.message,
+					})),
+				}
+			);
+		}
 	}
 
 	private async ensureMovieEmbedding(

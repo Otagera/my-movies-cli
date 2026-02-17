@@ -1,25 +1,31 @@
 {
   "name": "letterboxd-cli",
   "version": "1.0.0",
-  "description": "",
+  "description": "A CLI tool for Letterboxd movie recommendations and watchlist management.",
   "main": "dist/index.js",
+  "bin": {
+    "letterboxd-cli": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "data"
+  ],
   "scripts": {
-    "start": "ts-node src/index.ts",
-    "prestart:server": "test -f host.key || ssh-keygen -t rsa -b 4096 -f host.key -N ''",
-    "start:server": "ts-node src/server.ts",
-    "dev": "NODE_TLS_REJECT_UNAUTHORIZED='0' ts-node src/index.ts",
+    "chroma:start": "npx chroma run --path ./data/chroma_db",
+    "start": "npm run chroma:start & wait-on http://localhost:8000/api/v1/heartbeat && ts-node src/index.ts",
+    "dev": "npm run chroma:start & wait-on http://localhost:8000/api/v1/heartbeat && NODE_TLS_REJECT_UNAUTHORIZED='0' ts-node src/index.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "format": "npx @biomejs/biome format --write ./src",
     "lint": "npx @biomejs/biome lint ./src",
     "check": "npx @biomejs/biome check ./src",
-    "build": "tsc"
+    "build": "tsc",
+    "prepare": "npm run build"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
     "@types/cheerio": "^1.0.0",
-    "@types/ssh2": "^1.15.5",
     "@xenova/transformers": "^2.17.2",
     "axios": "^1.10.0",
     "cheerio": "^1.1.1",
@@ -31,7 +37,6 @@
     "knex": "^3.1.0",
     "puppeteer": "^24.14.0",
     "sqlite3": "^5.1.7",
-    "ssh2": "^1.17.0",
     "zod": "^4.2.1"
   },
   "devDependencies": {
@@ -39,6 +44,7 @@
     "@types/inquirer": "^9.0.8",
     "@types/node": "^24.0.12",
     "ts-node": "^10.9.2",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "wait-on": "^9.0.4"
   }
 }

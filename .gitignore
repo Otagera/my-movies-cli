@@ -7,18 +7,14 @@
 # Environment variables
 .env
 
-# Data files
-/data
-/cache.sqlite
-src/data
+# Ignore all personal data and local databases
+/data/
+*.sqlite
+*.csv
 
 # OS generated files
 **/.DS_Store
 
 # AI related files
 GEMINI.md
-cache.sqlite
-host.key\nhost.key.pub
-host.key
-host.key.pub
 .cache

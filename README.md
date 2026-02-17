@@ -1,31 +1,29 @@
 # Letterboxd CLI
 
-This is a command-line interface (CLI) tool for interacting with your Letterboxd data. It uses a hybrid approach with semantic search and a detailed taste profile to provide personalized movie recommendations, track your watched movies, manage your watchlist, and find where to watch movies based on your streaming services.
+A powerful, local-first movie recommendation and watchlist management tool that integrates your Letterboxd history with TMDb data. It uses a hybrid approach with semantic search and a detailed taste profile to provide nuanced movie suggestions.
 
 ## Features
 
--   **Hybrid Personalized Recommendations:** Get movie recommendations based on a sophisticated analysis of your highly-rated movies, combining semantic search on movie overviews with a detailed taste profile of your favorite genres, actors, and directors.
--   **Direct Letterboxd Data Sync:** Keep your local data up-to-date by syncing directly with your Letterboxd account, fetching your diary, ratings, and watchlist.
--   **Watched Movies Tracking:** See how many movies you've watched and list movies from specific years.
--   **Watchlist Management:** View your watchlist and get suggestions for movies available on your subscribed streaming services.
--   **Where to Watch:** Find streaming availability for any movie in your region.
--   **Random Movie Suggestions:** Get a random movie suggestion with details and reasons based on your taste profile, intelligently filtered to exclude movies you've already seen or have on your watchlist.
+- **Hybrid Personalized Recommendations:** Get movie suggestions based on a sophisticated analysis of your highly-rated movies, combining semantic search on movie overviews with a detailed taste profile of your favorite genres, actors, and directors.
+- **Direct Data Sync:** Keep your local data up-to-date by syncing directly with your Letterboxd account, fetching your diary, ratings, and watchlist (via CSV or Scraping).
+- **Watch Availability:** Check where movies are streaming in your country based on your specific subscriptions.
+- **Watchlist Tracking:** Monitor your Letterboxd watchlist for availability changes on streaming platforms.
+- **Random Movie Suggestions:** Get a random movie suggestion with details and reasons based on your taste profile, intelligently filtered to exclude movies you've already seen.
+- **Local-First:** All your data and movie embeddings stay on your machine in a local SQLite and ChromaDB instance.
 
 ## Setup and Usage
 
 ### Prerequisites
 
--   Node.js (v18 or higher recommended)
--   npm (Node Package Manager)
--   A TMDb API Key (get one from [TMDb](https://www.themoviedb.org/documentation/api))
--   [ChromaDB](https://www.trychroma.com/): The application requires a running ChromaDB server for the recommendation engine. The easiest way to run this is via `npx`.
--   Your Letterboxd data: You can start by placing your exported CSV files (`diary.csv`, `watchlist.csv`, `ratings.csv`) in the `data/` directory, and then keep them updated using the in-app sync feature.
+- **Node.js:** v18 or higher.
+- **TMDb API Key:** Required for movie data and streaming provider information.
+- **Letterboxd Account:** To export your data or provide a profile URL for scraping.
 
 ### Setup
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/your-repo/letterboxd-cli.git
+    git clone https://github.com/your-username/letterboxd-cli.git
     cd letterboxd-cli
     ```
 
@@ -34,69 +32,34 @@ This is a command-line interface (CLI) tool for interacting with your Letterboxd
     npm install
     ```
 
-### Configuration
-
-Configuration is now managed through `src/app.config.ts`. This file allows for more flexible and typed configuration.
-
-You can modify this file directly to change application settings. For sensitive information like API keys and passwords, you should use a `.env` file in the root of the project. The application will automatically load these variables and make them available in the config.
-
-The following variables are loaded from the `.env` file:
-- `LETTERBOXD_USERNAME`
-- `LETTERBOXD_PASSWORD`
-- `TMDB_API_KEY`
-
-All other settings, such as `STREAMING_COUNTRY_CODE`, are now configured in `src/app.config.ts`.
-
-4.  **Run the ChromaDB Server:**
-    Open a **separate terminal window** and run the following command from the project root:
+3.  **Configure Environment Variables:**
+    Copy the `.env.example` to `.env` and fill in your details:
     ```bash
-    npx chroma run --path ./data/chroma_db
+    cp .env.example .env
     ```
-    This will start the ChromaDB server and store its data in the `./data/chroma_db` directory. **Leave this terminal running.**
-
-### Offline / Restricted Network Setup
-
-If you are on a network that blocks access to Hugging Face, the application will fail when trying to download the embedding model. Follow these steps to use a local model cache:
-
-1.  **Download the model files:**
-    From a network without restrictions, download the files for the `Xenova/all-MiniLM-L6-v2` model. The easiest way is to clone the repository:
-    ```bash
-    git clone https://huggingface.co/Xenova/all-MiniLM-L6-v2 ./.cache/transformers/Xenova/all-MiniLM-L6-v2
-    ```
-    This will download all necessary files directly into the correct directory.
-
-2.  **Enable Local Model Loading:**
-    In `src/app.config.ts`, set `huggingface.useLocalModels` to `true`:
-    ```typescript
-    // src/app.config.ts
-    // ...
-    huggingface: {
-      useLocalModels: true, // Set this to true
-      modelName: "Xenova/all-MiniLM-L6-v2",
-      modelPath: "./.cache/transformers",
-    },
-    // ...
-    ```
-    The application will now load the model from your local cache and will not attempt to connect to Hugging Face.
+    - `TMDB_API_KEY`: Your TMDb API key.
+    - `LETTERBOXD_USERNAME`: Your Letterboxd username.
+    - `STREAMING_COUNTRY_CODE`: Your 2-letter country code (e.g., US, GB, NG).
 
 ### Running the CLI
-Start the ChromaDB server with 
+
+The CLI automatically handles starting its own ChromaDB "sidecar" instance for vector embeddings in the background.
 
 ```bash
-npx chroma run --path ./data/chroma_db
+# Start the full stack (ChromaDB + CLI)
+npm start
 ```
 
-With the ChromaDB server running in a separate terminal, start the application:
+### Running via npx
+You can run the CLI directly from your GitHub repository from any directory (ensure your `.env` is in that directory):
 
 ```bash
-npm run dev
+npx github:your-username/letterboxd-cli
 ```
-
-You will be presented with a menu of options to interact with your data.
 
 ## How the Recommendation Engine Works
 
-The recommendation engine is a hybrid system that combines the power of modern semantic search with a classic, detailed taste profile analysis. This two-stage process allows for more nuanced and personalized recommendations than a single approach alone.
+The recommendation engine is a hybrid system that combines the power of modern semantic search with a classic, detailed taste profile analysis.
 
 ### High-Level Overview
 
@@ -112,80 +75,32 @@ graph TD
     F --> G[Top 5 Recommendations on Your Services];
 ```
 
----
-
 ### Stage 1: Semantic Search & Taste Profile Embedding
-
-The first stage aims to understand the *substance* of the movies you enjoy.
-
-1.  **Embedding Generation:** For each of your highly-rated movies, we fetch its synopsis (overview) from TMDb. This text is then passed to a sentence-transformer model (`Xenova/all-MiniLM-L6-v2`) which converts the text into a numerical representation called an **embedding**. This embedding is a vector of numbers that captures the semantic meaning of the movie's plot. These embeddings are stored in ChromaDB.
-
-2.  **Creating a "Taste Profile Embedding":** To understand your overall taste, we average the embeddings of all your highly-rated movies. This creates a single "taste profile embedding" that represents the average semantic meaning of the movies you love.
-
-3.  **Semantic Search:** This taste profile embedding is then used as a query in ChromaDB. We search for the top 50 movies in our database whose embeddings are most similar to your taste profile embedding. This gives us a list of candidate movies that are thematically aligned with your preferences.
-
-```mermaid
-graph TD
-    subgraph Stage 1
-        A[Highly Rated Movie 1] --> B(Get Synopsis);
-        C[Highly Rated Movie 2] --> D(Get Synopsis);
-        E[...] --> F(...);
-
-        B --> G{Embedding Model};
-        D --> G;
-        F --> G;
-
-        G --> H[Embedding 1];
-        G --> I[Embedding 2];
-        G --> J[...];
-
-        H & I & J --> K(Average All Embeddings);
-        K --> L[Taste Profile Embedding];
-    end
-
-    subgraph ChromaDB
-        L --> M{Query for Similar Embeddings};
-    end
-
-    M --> N[Top 50 Similar Movie Candidates];
-```
-
----
+We generate embeddings for each of your highly-rated movies using a sentence-transformer model (`Xenova/all-MiniLM-L6-v2`). We then create a "Taste Profile Embedding" by averaging these vectors and use it to search ChromaDB for the top 50 thematically similar candidates.
 
 ### Stage 2: Detailed Scoring & Re-ranking
+We build a detailed profile of your preferences by counting genres, actors, and directors from your history. Each candidate from Stage 1 is then scored against this profile. The final hybrid score ensures recommendations are both thematically relevant and feature the specific elements you enjoy.
 
-While semantic search is powerful, it doesn't capture everything. You might like movies with a certain actor or director, regardless of the plot. Stage 2 addresses this by analyzing the specific details.
+## Offline / Restricted Network Setup
 
-1.  **Building a Detailed Taste Profile:** We create a detailed profile of your preferences by counting the occurrences of genres, actors (top 5 from each movie), directors, and writers across all your highly-rated movies. This gives us a weighted map of your favorite attributes (e.g., "Sci-Fi: 10", "Christopher Nolan: 5", "Tom Cruise: 3").
+If you are on a network that blocks access to Hugging Face, you can use a local model cache:
 
-2.  **Scoring the Candidates:** Each of the 50 candidate movies from Stage 1 is then scored against this detailed profile.
-    -   Does it match your favorite genres? **+ points**
-    -   Does it feature your favorite actors? **+ points**
-    -   Is it directed by a director you like? **+ points**
+1.  **Download the model files:**
+    ```bash
+    git clone https://huggingface.co/Xenova/all-MiniLM-L6-v2 ./.cache/transformers/Xenova/all-MiniLM-L6-v2
+    ```
 
-3.  **Final Hybrid Score:** The final score for each candidate is a combination of its **semantic similarity score** (from Stage 1) and this new **detailed score**. This hybrid score ensures that the recommendations are not only thematically relevant but also feature the specific elements you enjoy. The candidates are then re-ranked based on this final score.
+2.  **Enable Local Model Loading:**
+    In your `.env` file, set:
+    ```bash
+    HUGGINGFACE_USE_LOCAL_MODELS=true
+    HUGGINGFACE_MODEL_PATH=./.cache/transformers
+    ```
 
----
+## Development Project Structure
 
-### Stage 3: Filtering by Availability
-
-Finally, if you've chosen to see recommendations available on your streaming services, the re-ranked list is filtered to show only those movies available on the services you subscribe to in your region. This gives you a final, actionable list of movies you can watch right now.
-
-
-## Development
-
-### Project Structure
-
--   `src/index.ts`: Main application entry point, launches the CLI.
--   `src/cli.ts`: Contains the core `inquirer` prompt loop and user interaction logic.
--   `src/app.config.ts`: Manages application configuration, loading sensitive data from `.env` and providing typed settings.
--   `src/services/data-sync.service.ts`: Handles syncing data directly from Letterboxd using Puppeteer.
--   `src/services/embedding.service.ts`: Manages the loading of the sentence-transformer model from Hugging Face and generates embeddings for movie overviews.
--   `src/services/vector.service.ts`: A service to interact with the ChromaDB vector store (adding and querying movie embeddings).
--   `src/services/tmdb.service.ts`: Interacts with the TMDb API.
--   `src/services/recommendation.service.ts`: Contains the logic for generating movie recommendations using a hybrid of semantic search and a detailed taste profile.
--   `src/services/cache.service.ts`: Manages an SQLite cache for API responses and other data.
-
-### Contributing
-
-Feel free to fork the repository and submit pull requests.
+- `src/cli.ts`: Core interactive prompt loop.
+- `src/services/data-sync.service.ts`: Handles syncing data from Letterboxd.
+- `src/services/recommendation.service.ts`: Hybrid recommendation logic.
+- `src/services/vector.service.ts`: ChromaDB interaction.
+- `src/services/cache.service.ts`: SQLite persistence for metadata.

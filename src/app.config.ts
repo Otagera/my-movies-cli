@@ -52,10 +52,6 @@ const ConfigSchema = z.object({
 export type AppConfig = z.infer<typeof ConfigSchema>;
 
 export const loadConfig = (): AppConfig => {
-	console.log(
-		"process.env.STREAMING_COUNTRY_CODE",
-		process.env.STREAMING_COUNTRY_CODE
-	);
 	const rawConfig = {
 		tmdb: {
 			apiKey: process.env.TMDB_API_KEY,

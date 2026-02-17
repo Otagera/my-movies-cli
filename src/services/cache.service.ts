@@ -34,7 +34,8 @@ export class CacheService {
 	private config = getConfig();
 
 	constructor() {
-		const dbPath = path.resolve(__dirname, `../../${this.config.cache.dbPath}`);
+		// Store the database in the user's current working directory
+		const dbPath = path.resolve(process.cwd(), this.config.cache.dbPath);
 		this.db = knex({
 			client: "sqlite3",
 			connection: {
@@ -90,14 +91,14 @@ export class CacheService {
 		const hasDiaryTable = await this.db.schema.hasTable("diary");
 		if (!hasDiaryTable) {
 			await this.db.schema.createTable("diary", (table) => {
-				table.string("Date");
+				table.string("LoggedDate");
 				table.string("Name");
-				table.string("Year");
-				table.string("Letterboxd URI").primary();
-				table.string("Rating");
-				table.string("Rewatch");
+				table.integer("Year");
+				table.string("LetterboxdURI").primary();
+				table.float("Rating");
+				table.boolean("Rewatch");
 				table.string("Tags");
-				table.string("Watched Date");
+				table.string("WatchedDate");
 			});
 		}
 
@@ -106,9 +107,9 @@ export class CacheService {
 			await this.db.schema.createTable("ratings", (table) => {
 				table.string("Date");
 				table.string("Name");
-				table.string("Year");
-				table.string("Letterboxd URI").primary();
-				table.integer("Rating");
+				table.integer("Year");
+				table.string("LetterboxdURI").primary();
+				table.float("Rating");
 			});
 		}
 
@@ -117,8 +118,8 @@ export class CacheService {
 			await this.db.schema.createTable("watchlist", (table) => {
 				table.string("Date");
 				table.string("Name");
-				table.string("Year");
-				table.string("Letterboxd URI").primary();
+				table.integer("Year");
+				table.string("LetterboxdURI").primary();
 			});
 		}
 
@@ -224,29 +225,57 @@ export class CacheService {
 
 	async saveDiaryEntries(entries: DiaryEntry[]) {
 		await this.db("diary").del();
-		await this.db.batchInsert("diary", entries);
+		// Convert Date objects to ISO strings for SQLite
+		const serializedEntries = entries.map(e => ({
+			...e,
+			LoggedDate: e.LoggedDate.toISOString(),
+			WatchedDate: e.WatchedDate.toISOString()
+		}));
+		await this.db.batchInsert("diary", serializedEntries);
 	}
 
 	async getDiaryEntries(): Promise<DiaryEntry[]> {
-		return this.db("diary").select();
+		const rows = await this.db("diary").select();
+		return rows.map(r => ({
+			...r,
+			LoggedDate: new Date(r.LoggedDate),
+			WatchedDate: new Date(r.WatchedDate),
+			Rewatch: Boolean(r.Rewatch)
+		}));
 	}
 
 	async saveRatingEntries(entries: RatingEntry[]) {
 		await this.db("ratings").del();
-		await this.db.batchInsert("ratings", entries);
+		const serializedEntries = entries.map(e => ({
+			...e,
+			Date: e.Date.toISOString()
+		}));
+		await this.db.batchInsert("ratings", serializedEntries);
 	}
 
 	async getRatingEntries(): Promise<RatingEntry[]> {
-		return this.db("ratings").select();
+		const rows = await this.db("ratings").select();
+		return rows.map(r => ({
+			...r,
+			Date: new Date(r.Date)
+		}));
 	}
 
 	async saveWatchlistEntries(entries: WatchlistEntry[]) {
 		await this.db("watchlist").del();
-		await this.db.batchInsert("watchlist", entries);
+		const serializedEntries = entries.map(e => ({
+			...e,
+			Date: e.Date.toISOString()
+		}));
+		await this.db.batchInsert("watchlist", serializedEntries);
 	}
 
 	async getWatchlistEntries(): Promise<WatchlistEntry[]> {
-		return this.db("watchlist").select();
+		const rows = await this.db("watchlist").select();
+		return rows.map(r => ({
+			...r,
+			Date: new Date(r.Date)
+		}));
 	}
 
 	async saveSavedLists(entries: SavedList[]) {
