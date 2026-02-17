@@ -52,9 +52,11 @@ export async function runCli() {
   const countryCode = process.env.STREAMING_COUNTRY_CODE;
 
   if (!tmdbApiKey || !countryCode) {
-    console.error(
-      "Please ensure TMDB_API_KEY and STREAMING_COUNTRY_CODE are set in your .env file.",
-    );
+    console.error("\r\n❌ ERROR: Missing configuration!");
+    console.error("This CLI requires a .env file in your current directory with:");
+    console.error("- TMDB_API_KEY");
+    console.error("- STREAMING_COUNTRY_CODE");
+    console.error("\r\nPlease check .env.example for guidance.\r\n");
     process.exit(1);
   }
 
