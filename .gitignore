@@ -18,3 +18,5 @@
 # AI related files
 GEMINI.md
 .cache
+
+/dist/*.map
