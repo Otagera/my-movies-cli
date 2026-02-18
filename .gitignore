@@ -1,8 +1,8 @@
 # Dependencies
 /node_modules
 
-# Build output
-/dist
+# Build output (We are tracking this for NPX support)
+#/dist
 
 # Environment variables
 .env
