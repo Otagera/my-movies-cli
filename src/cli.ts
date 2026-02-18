@@ -70,6 +70,13 @@ export async function runCli() {
   let subscribedServices =
     (await cacheService.get<string[]>("streaming_services")) || [];
 
+  // Fallback to .env if cache is empty
+  if (subscribedServices.length === 0 && process.env.STREAMING_SERVICES) {
+    subscribedServices = process.env.STREAMING_SERVICES.split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter((s) => s.length > 0);
+  }
+
   const letterboxdService = new LetterboxdService(cacheService);
   const useScraping = process.env.LETTERBOXD_USE_SCRAPING === "true";
   const dataSyncService = new DataSyncService(
@@ -186,7 +193,35 @@ export async function runCli() {
           break;
         }
         case "Sync data with Letterboxd": {
-          await dataSyncService.syncData();
+          const { syncSource } = await inquirer.prompt([
+            {
+              type: "list",
+              name: "syncSource",
+              message: "Where do you want to load data from?",
+              choices: ["Letterboxd profile (scraping)", "CSV files"],
+            },
+          ]);
+
+          const isScraping = syncSource === "Letterboxd profile (scraping)";
+          const syncService = new DataSyncService(
+            cacheService,
+            letterboxdService,
+            isScraping,
+          );
+
+          if (isScraping) {
+            const { profileUrl } = await inquirer.prompt([
+              {
+                type: "input",
+                name: "profileUrl",
+                message: "Enter your Letterboxd profile URL:",
+              },
+            ]);
+            await syncService.syncData(profileUrl);
+          } else {
+            await syncService.syncData();
+          }
+
           // Reload data from cache
           diaryData = await cacheService.getDiaryEntries();
           watchlistData = await cacheService.getWatchlistEntries();

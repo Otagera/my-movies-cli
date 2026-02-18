@@ -64,6 +64,12 @@ async function runCli() {
     let ratingsData = await cacheService.getRatingEntries();
     let savedLists = await cacheService.getSavedLists();
     let subscribedServices = (await cacheService.get("streaming_services")) || [];
+    // Fallback to .env if cache is empty
+    if (subscribedServices.length === 0 && process.env.STREAMING_SERVICES) {
+        subscribedServices = process.env.STREAMING_SERVICES.split(",")
+            .map((s) => s.trim().toLowerCase())
+            .filter((s) => s.length > 0);
+    }
     const letterboxdService = new letterboxd_service_1.LetterboxdService(cacheService);
     const useScraping = process.env.LETTERBOXD_USE_SCRAPING === "true";
     const dataSyncService = new data_sync_service_1.DataSyncService(cacheService, letterboxdService, useScraping);
@@ -145,7 +151,29 @@ async function runCli() {
                     break;
                 }
                 case "Sync data with Letterboxd": {
-                    await dataSyncService.syncData();
+                    const { syncSource } = await inquirer_1.default.prompt([
+                        {
+                            type: "list",
+                            name: "syncSource",
+                            message: "Where do you want to load data from?",
+                            choices: ["Letterboxd profile (scraping)", "CSV files"],
+                        },
+                    ]);
+                    const isScraping = syncSource === "Letterboxd profile (scraping)";
+                    const syncService = new data_sync_service_1.DataSyncService(cacheService, letterboxdService, isScraping);
+                    if (isScraping) {
+                        const { profileUrl } = await inquirer_1.default.prompt([
+                            {
+                                type: "input",
+                                name: "profileUrl",
+                                message: "Enter your Letterboxd profile URL:",
+                            },
+                        ]);
+                        await syncService.syncData(profileUrl);
+                    }
+                    else {
+                        await syncService.syncData();
+                    }
                     // Reload data from cache
                     diaryData = await cacheService.getDiaryEntries();
                     watchlistData = await cacheService.getWatchlistEntries();
