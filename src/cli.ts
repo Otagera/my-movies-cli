@@ -1,6 +1,8 @@
 import inquirer from "inquirer";
 import dotenv from "dotenv";
 import cliSpinners from "cli-spinners";
+import * as fs from "fs";
+import * as path from "path";
 import { TMDbService } from "./services/tmdb.service";
 import { RecommendationService } from "./services/recommendation.service";
 import { CacheService } from "./services/cache.service";
@@ -49,16 +51,43 @@ export async function runCli() {
   const cacheService = new CacheService();
   await cacheService.init();
 
-  const tmdbApiKey = process.env.TMDB_API_KEY;
-  const countryCode = process.env.STREAMING_COUNTRY_CODE;
+  let tmdbApiKey = process.env.TMDB_API_KEY;
+  let countryCode = process.env.STREAMING_COUNTRY_CODE;
 
   if (!tmdbApiKey || !countryCode) {
-    console.error("\r\n❌ ERROR: Missing configuration!");
-    console.error("This CLI requires a .env file in your current directory with:");
-    console.error("- TMDB_API_KEY");
-    console.error("- STREAMING_COUNTRY_CODE");
-    console.error("\r\nPlease check .env.example for guidance.\r\n");
-    process.exit(1);
+    console.log("\r\n👋 Welcome! It looks like this is your first time or configuration is missing.");
+    const { setup } = await inquirer.prompt([{
+      type: "confirm",
+      name: "setup",
+      message: "Would you like to configure your TMDb API key and Country Code now?",
+      default: true
+    }]);
+
+    if (setup) {
+      const { tmdbKey, country } = await inquirer.prompt([
+        {
+          type: "input",
+          name: "tmdbKey",
+          message: "Enter your TMDb API Key:",
+        },
+        {
+          type: "input",
+          name: "country",
+          message: "Enter your 2-letter Country Code (e.g. US, NG):",
+          default: "NG",
+          validate: (val) => val.length === 2 || "Must be 2 characters.",
+        },
+      ]);
+
+      const envPath = path.join(process.cwd(), ".env");
+      const envContent = `TMDB_API_KEY=${tmdbKey}\nSTREAMING_COUNTRY_CODE=${country.toUpperCase()}\n`;
+      fs.writeFileSync(envPath, envContent);
+      console.log("✅ Configuration saved! Please restart the CLI.");
+      process.exit(0);
+    } else {
+      console.error("❌ Cannot continue without configuration.");
+      process.exit(1);
+    }
   }
 
   // Load data from all sources
@@ -122,14 +151,14 @@ export async function runCli() {
             "How many movies are on my watchlist?",
             "List movies watched in a specific year",
             "List all movies on my watchlist",
-            "List available streaming services",
             "List available movies on my watchlist",
             new inquirer.Separator(),
             "Get movies from a Letterboxd list",
             "Check for watchlist availability changes",
             new inquirer.Separator(),
-            "Set streaming services",
             "Sync data with Letterboxd",
+            "Configure CLI settings",
+            "Set streaming services",
             "Exit",
           ],
         },
@@ -658,6 +687,48 @@ export async function runCli() {
             );
             console.error(e);
           }
+          break;
+        }
+
+        case "Configure CLI settings": {
+          const { tmdbKey, country } = await inquirer.prompt([
+            {
+              type: "input",
+              name: "tmdbKey",
+              message: "Enter your TMDb API Key:",
+              default: process.env.TMDB_API_KEY,
+            },
+            {
+              type: "input",
+              name: "country",
+              message: "Enter your 2-letter Country Code (e.g. US, NG):",
+              default: process.env.STREAMING_COUNTRY_CODE || "NG",
+              validate: (val) => val.length === 2 || "Must be 2 characters.",
+            },
+          ]);
+
+          const envPath = path.join(process.cwd(), ".env");
+          let envContent = "";
+          if (fs.existsSync(envPath)) {
+            envContent = fs.readFileSync(envPath, "utf-8");
+          }
+
+          const updates = {
+            TMDB_API_KEY: tmdbKey,
+            STREAMING_COUNTRY_CODE: country.toUpperCase(),
+          };
+
+          for (const [key, value] of Object.entries(updates)) {
+            const regex = new RegExp(`^${key}=.*`, "m");
+            if (regex.test(envContent)) {
+              envContent = envContent.replace(regex, `${key}=${value}`);
+            } else {
+              envContent += `\n${key}=${value}`;
+            }
+          }
+
+          fs.writeFileSync(envPath, envContent.trim() + "\n");
+          console.log("✅ Configuration saved to .env! Please restart the CLI for changes to take effect.");
           break;
         }
 

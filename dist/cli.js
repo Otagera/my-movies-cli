@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
@@ -7,6 +40,8 @@ exports.runCli = runCli;
 const inquirer_1 = __importDefault(require("inquirer"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const cli_spinners_1 = __importDefault(require("cli-spinners"));
+const fs = __importStar(require("fs"));
+const path = __importStar(require("path"));
 const tmdb_service_1 = require("./services/tmdb.service");
 const recommendation_service_1 = require("./services/recommendation.service");
 const cache_service_1 = require("./services/cache.service");
@@ -48,15 +83,41 @@ async function runCli() {
     dotenv_1.default.config();
     const cacheService = new cache_service_1.CacheService();
     await cacheService.init();
-    const tmdbApiKey = process.env.TMDB_API_KEY;
-    const countryCode = process.env.STREAMING_COUNTRY_CODE;
+    let tmdbApiKey = process.env.TMDB_API_KEY;
+    let countryCode = process.env.STREAMING_COUNTRY_CODE;
     if (!tmdbApiKey || !countryCode) {
-        console.error("\r\n❌ ERROR: Missing configuration!");
-        console.error("This CLI requires a .env file in your current directory with:");
-        console.error("- TMDB_API_KEY");
-        console.error("- STREAMING_COUNTRY_CODE");
-        console.error("\r\nPlease check .env.example for guidance.\r\n");
-        process.exit(1);
+        console.log("\r\n👋 Welcome! It looks like this is your first time or configuration is missing.");
+        const { setup } = await inquirer_1.default.prompt([{
+                type: "confirm",
+                name: "setup",
+                message: "Would you like to configure your TMDb API key and Country Code now?",
+                default: true
+            }]);
+        if (setup) {
+            const { tmdbKey, country } = await inquirer_1.default.prompt([
+                {
+                    type: "input",
+                    name: "tmdbKey",
+                    message: "Enter your TMDb API Key:",
+                },
+                {
+                    type: "input",
+                    name: "country",
+                    message: "Enter your 2-letter Country Code (e.g. US, NG):",
+                    default: "NG",
+                    validate: (val) => val.length === 2 || "Must be 2 characters.",
+                },
+            ]);
+            const envPath = path.join(process.cwd(), ".env");
+            const envContent = `TMDB_API_KEY=${tmdbKey}\nSTREAMING_COUNTRY_CODE=${country.toUpperCase()}\n`;
+            fs.writeFileSync(envPath, envContent);
+            console.log("✅ Configuration saved! Please restart the CLI.");
+            process.exit(0);
+        }
+        else {
+            console.error("❌ Cannot continue without configuration.");
+            process.exit(1);
+        }
     }
     // Load data from all sources
     let diaryData = await cacheService.getDiaryEntries();
@@ -102,14 +163,14 @@ async function runCli() {
                         "How many movies are on my watchlist?",
                         "List movies watched in a specific year",
                         "List all movies on my watchlist",
-                        "List available streaming services",
                         "List available movies on my watchlist",
                         new inquirer_1.default.Separator(),
                         "Get movies from a Letterboxd list",
                         "Check for watchlist availability changes",
                         new inquirer_1.default.Separator(),
-                        "Set streaming services",
                         "Sync data with Letterboxd",
+                        "Configure CLI settings",
+                        "Set streaming services",
                         "Exit",
                     ],
                 },
@@ -494,6 +555,44 @@ async function runCli() {
                         watchlistSpinner.fail("Error checking for watchlist availability changes.");
                         console.error(e);
                     }
+                    break;
+                }
+                case "Configure CLI settings": {
+                    const { tmdbKey, country } = await inquirer_1.default.prompt([
+                        {
+                            type: "input",
+                            name: "tmdbKey",
+                            message: "Enter your TMDb API Key:",
+                            default: process.env.TMDB_API_KEY,
+                        },
+                        {
+                            type: "input",
+                            name: "country",
+                            message: "Enter your 2-letter Country Code (e.g. US, NG):",
+                            default: process.env.STREAMING_COUNTRY_CODE || "NG",
+                            validate: (val) => val.length === 2 || "Must be 2 characters.",
+                        },
+                    ]);
+                    const envPath = path.join(process.cwd(), ".env");
+                    let envContent = "";
+                    if (fs.existsSync(envPath)) {
+                        envContent = fs.readFileSync(envPath, "utf-8");
+                    }
+                    const updates = {
+                        TMDB_API_KEY: tmdbKey,
+                        STREAMING_COUNTRY_CODE: country.toUpperCase(),
+                    };
+                    for (const [key, value] of Object.entries(updates)) {
+                        const regex = new RegExp(`^${key}=.*`, "m");
+                        if (regex.test(envContent)) {
+                            envContent = envContent.replace(regex, `${key}=${value}`);
+                        }
+                        else {
+                            envContent += `\n${key}=${value}`;
+                        }
+                    }
+                    fs.writeFileSync(envPath, envContent.trim() + "\n");
+                    console.log("✅ Configuration saved to .env! Please restart the CLI for changes to take effect.");
                     break;
                 }
                 case "Exit": {
