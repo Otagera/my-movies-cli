@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import csv from "csv-parser";
 
-const DATA_DIR = path.join(__dirname, "../../data");
+const DATA_DIR = path.join(process.cwd(), "data");
 
 export async function loadCsvData<T>(fileName: string): Promise<T[]> {
   const filePath = path.join(DATA_DIR, fileName);
