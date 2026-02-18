@@ -1,5 +1,4 @@
 import * as cheerio from "cheerio";
-import puppeteer from "puppeteer";
 import axios from "axios";
 import { CacheService } from "./cache.service";
 import { DiaryEntry, RatingEntry, WatchlistEntry } from "../interface";
@@ -10,13 +9,25 @@ export class LetterboxdService {
 		this.cacheService = cacheService;
 	}
 
+	private async getBrowser() {
+		try {
+			const puppeteer = await import("puppeteer");
+			return await puppeteer.default.launch({ headless: true });
+		} catch (error) {
+			console.error("\r\n❌ ERROR: Scraping capability is missing!");
+			console.error("To enable Letterboxd scraping, you must manually install puppeteer:");
+			console.error("\r\n   npm install puppeteer\r\n");
+			throw new Error("Puppeteer not found. Install it to use scraping features.");
+		}
+	}
+
 	public async getMoviesFromList(listUrl: string): Promise<string[]> {
 		const cachedMovies = await this.cacheService.get<string[]>(listUrl);
 		if (cachedMovies) {
 			return cachedMovies;
 		}
 
-		const browser = await puppeteer.launch({ headless: true });
+		const browser = await this.getBrowser();
 		const page = await browser.newPage();
 		await page.goto(listUrl, { waitUntil: "networkidle0" });
 
@@ -55,7 +66,7 @@ export class LetterboxdService {
 			baseUrl.origin
 		).href;
 
-		const browser = await puppeteer.launch({ headless: true });
+		const browser = await this.getBrowser();
 		const page = await browser.newPage();
 		await page.goto(ratingsUrl, { waitUntil: "networkidle0" });
 
@@ -74,12 +85,10 @@ export class LetterboxdService {
 				const letterboxdURI = $(element).attr("data-item-slug");
 				// Ratings are in a sibling div, not a parent. Let's find it.
 				const ratingSpan = $(element).find('span.rating');
-				console.log("ratingSpan", ratingSpan)
 				let rating = 0;
 				if (ratingSpan.length > 0) {
 					const ratingClasses = ratingSpan.attr('class')?.split(' ');
 					const ratedClass = ratingClasses?.find(c => c.startsWith('rated-'));
-					console.log("ratingClasses", ratingClasses)
 					if (ratedClass) {
 						rating = parseInt(ratedClass.split('-')[1], 10) / 2;
 					}
@@ -119,7 +128,7 @@ export class LetterboxdService {
 			baseUrl.origin
 		).href;
 
-		const browser = await puppeteer.launch({ headless: true });
+		const browser = await this.getBrowser();
 		const page = await browser.newPage();
 		await page.goto(watchlistUrl, { waitUntil: "networkidle0" });
 
@@ -180,7 +189,8 @@ export class LetterboxdService {
 			const rating = ratingStr ? parseInt(ratingStr.split('rated-').pop() || '0', 10) / 2 : 0;
 			const letterboxdURI = $(element).find('h3 a').attr('href');
 			const rewatch = $(element).find('td.td-rewatch').text().includes('rewatch');
-			const date = new Date($(element).find('td.td-day a').attr('href')?.split('/')[5] || '');
+			const datePath = $(element).find('td.td-day a').attr('href')?.split('/');
+			const date = datePath ? new Date(datePath[5]) : new Date();
 
 
 			if (title && year && letterboxdURI) {
@@ -191,8 +201,8 @@ export class LetterboxdService {
 					Rating: rating,
 					LetterboxdURI: letterboxdURI,
 					Rewatch: rewatch,
-					LoggedDate: date, // Assuming 'date' from URL is the watched date
-					WatchedDate: date, // Using watched date for logged date for now
+					LoggedDate: date,
+					WatchedDate: date,
 					Tags: ''
 				});
 			}

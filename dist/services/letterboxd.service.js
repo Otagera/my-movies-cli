@@ -38,19 +38,30 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LetterboxdService = void 0;
 const cheerio = __importStar(require("cheerio"));
-const puppeteer_1 = __importDefault(require("puppeteer"));
 const axios_1 = __importDefault(require("axios"));
 class LetterboxdService {
     cacheService;
     constructor(cacheService) {
         this.cacheService = cacheService;
     }
+    async getBrowser() {
+        try {
+            const puppeteer = await Promise.resolve().then(() => __importStar(require("puppeteer")));
+            return await puppeteer.default.launch({ headless: true });
+        }
+        catch (error) {
+            console.error("\r\n❌ ERROR: Scraping capability is missing!");
+            console.error("To enable Letterboxd scraping, you must manually install puppeteer:");
+            console.error("\r\n   npm install puppeteer\r\n");
+            throw new Error("Puppeteer not found. Install it to use scraping features.");
+        }
+    }
     async getMoviesFromList(listUrl) {
         const cachedMovies = await this.cacheService.get(listUrl);
         if (cachedMovies) {
             return cachedMovies;
         }
-        const browser = await puppeteer_1.default.launch({ headless: true });
+        const browser = await this.getBrowser();
         const page = await browser.newPage();
         await page.goto(listUrl, { waitUntil: "networkidle0" });
         const movies = [];
@@ -80,7 +91,7 @@ class LetterboxdService {
     async scrapeRatings(profileUrl) {
         const baseUrl = new URL(profileUrl);
         const ratingsUrl = new URL(`${baseUrl.pathname}/films/`, baseUrl.origin).href;
-        const browser = await puppeteer_1.default.launch({ headless: true });
+        const browser = await this.getBrowser();
         const page = await browser.newPage();
         await page.goto(ratingsUrl, { waitUntil: "networkidle0" });
         const ratings = [];
@@ -95,12 +106,10 @@ class LetterboxdService {
                 const letterboxdURI = $(element).attr("data-item-slug");
                 // Ratings are in a sibling div, not a parent. Let's find it.
                 const ratingSpan = $(element).find('span.rating');
-                console.log("ratingSpan", ratingSpan);
                 let rating = 0;
                 if (ratingSpan.length > 0) {
                     const ratingClasses = ratingSpan.attr('class')?.split(' ');
                     const ratedClass = ratingClasses?.find(c => c.startsWith('rated-'));
-                    console.log("ratingClasses", ratingClasses);
                     if (ratedClass) {
                         rating = parseInt(ratedClass.split('-')[1], 10) / 2;
                     }
@@ -133,7 +142,7 @@ class LetterboxdService {
     async scrapeWatchlist(profileUrl) {
         const baseUrl = new URL(profileUrl);
         const watchlistUrl = new URL(`${baseUrl.pathname}/watchlist/`, baseUrl.origin).href;
-        const browser = await puppeteer_1.default.launch({ headless: true });
+        const browser = await this.getBrowser();
         const page = await browser.newPage();
         await page.goto(watchlistUrl, { waitUntil: "networkidle0" });
         const watchlist = [];
@@ -185,7 +194,8 @@ class LetterboxdService {
             const rating = ratingStr ? parseInt(ratingStr.split('rated-').pop() || '0', 10) / 2 : 0;
             const letterboxdURI = $(element).find('h3 a').attr('href');
             const rewatch = $(element).find('td.td-rewatch').text().includes('rewatch');
-            const date = new Date($(element).find('td.td-day a').attr('href')?.split('/')[5] || '');
+            const datePath = $(element).find('td.td-day a').attr('href')?.split('/');
+            const date = datePath ? new Date(datePath[5]) : new Date();
             if (title && year && letterboxdURI) {
                 console.log(`- Found: ${title} (${year}) - Rating: ${rating}`);
                 diary.push({
@@ -194,8 +204,8 @@ class LetterboxdService {
                     Rating: rating,
                     LetterboxdURI: letterboxdURI,
                     Rewatch: rewatch,
-                    LoggedDate: date, // Assuming 'date' from URL is the watched date
-                    WatchedDate: date, // Using watched date for logged date for now
+                    LoggedDate: date,
+                    WatchedDate: date,
                     Tags: ''
                 });
             }
