@@ -28,6 +28,7 @@ export class RecommendationService {
 	}
 
 	public async init() {
+		await this.vectorService.ensureServerRunning();
 		this.embeddingService = await EmbeddingService.getInstance();
 	}
 

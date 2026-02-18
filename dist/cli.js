@@ -69,6 +69,7 @@ async function runCli() {
     const dataSyncService = new data_sync_service_1.DataSyncService(cacheService, letterboxdService, useScraping);
     const tmdbService = new tmdb_service_1.TMDbService(tmdbApiKey, cacheService);
     const recommendationService = new recommendation_service_1.RecommendationService(tmdbService);
+    await recommendationService.init();
     const watchlistService = new watchlist_service_1.WatchlistService(tmdbService, cacheService, subscribedServices, countryCode);
     // Log loaded data summary
     if (diaryData.length > 0)

@@ -79,6 +79,7 @@ export async function runCli() {
   );
   const tmdbService = new TMDbService(tmdbApiKey, cacheService);
   const recommendationService = new RecommendationService(tmdbService);
+  await recommendationService.init();
   const watchlistService = new WatchlistService(
     tmdbService,
     cacheService,

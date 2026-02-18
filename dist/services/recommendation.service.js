@@ -17,6 +17,7 @@ class RecommendationService {
         this.vectorService = new vector_service_1.VectorService();
     }
     async init() {
+        await this.vectorService.ensureServerRunning();
         this.embeddingService = await embedding_service_1.EmbeddingService.getInstance();
     }
     async getRecommendations(diary, watchlist, highlyRatedMovies, subscribedServices, countryCode) {
