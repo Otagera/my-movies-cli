@@ -43,6 +43,7 @@ function createSpinner(text: string) {
 }
 
 export async function runCli() {
+  console.log("⚙️  Loading configuration and services...");
   dotenv.config();
 
   const cacheService = new CacheService();

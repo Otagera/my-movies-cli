@@ -3,9 +3,7 @@
   "version": "1.0.0",
   "description": "A CLI tool for Letterboxd movie recommendations and watchlist management.",
   "main": "dist/index.js",
-  "bin": {
-    "my-movies-cli": "./dist/index.js"
-  },
+  "bin": "./dist/index.js",
   "files": [
     "dist",
     "data"
@@ -19,7 +17,7 @@
     "lint": "npx @biomejs/biome lint ./src",
     "check": "npx @biomejs/biome check ./src",
     "build": "tsc && npm run postbuild",
-    "postbuild": "echo '#!/usr/bin/env node' | cat - dist/index.js > temp.js && mv temp.js dist/index.js && chmod +x dist/index.js",
+    "postbuild": "node -e \"const fs=require('fs'); const path='dist/index.js'; const content=fs.readFileSync(path); fs.writeFileSync(path, '#!/usr/bin/env node\\n' + content); fs.chmodSync(path, '755');\"",
     "prepare": "npm run build"
   },
   "keywords": [],
